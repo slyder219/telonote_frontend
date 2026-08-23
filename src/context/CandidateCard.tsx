@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Button from '../components/Button'
 import TextField from '../components/TextField'
+import Highlight from '../search/Highlight'
 import type { ContextCandidate, ContextItem, UpdateCandidateInput } from '../api/context'
 
 function PencilIcon() {
@@ -37,6 +38,7 @@ interface CandidateCardProps {
   onIgnore: (id: string) => void
   selected: boolean
   onToggleSelect: (id: string) => void
+  searchQuery: string
 }
 
 export default function CandidateCard({
@@ -48,6 +50,7 @@ export default function CandidateCard({
   onIgnore,
   selected,
   onToggleSelect,
+  searchQuery,
 }: CandidateCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [term, setTerm] = useState(candidate.proposed_term)
@@ -102,15 +105,19 @@ export default function CandidateCard({
           />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold text-ink">{candidate.proposed_term}</span>
+              <span className="font-semibold text-ink">
+                <Highlight text={candidate.proposed_term} query={searchQuery} />
+              </span>
               {candidate.proposed_category && (
                 <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-600">
-                  {candidate.proposed_category}
+                  <Highlight text={candidate.proposed_category} query={searchQuery} />
                 </span>
               )}
             </div>
             {candidate.proposed_description && !isEditing && (
-              <p className="mt-1.5 text-sm text-ink-soft">{candidate.proposed_description}</p>
+              <p className="mt-1.5 text-sm text-ink-soft">
+                <Highlight text={candidate.proposed_description} query={searchQuery} />
+              </p>
             )}
           </div>
         </div>
@@ -126,7 +133,7 @@ export default function CandidateCard({
         <div className="mt-2 flex flex-wrap gap-1.5">
           {candidate.aliases.map((alias) => (
             <span key={alias} className="rounded-full bg-paper px-2.5 py-0.5 text-xs text-ink-soft">
-              {alias}
+              <Highlight text={alias} query={searchQuery} />
             </span>
           ))}
         </div>

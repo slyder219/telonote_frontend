@@ -28,6 +28,11 @@ export default function SwipeableRow({ children, onDelete, onEdit, disabled }: S
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (disabled || (!canSwipeLeft && !canSwipeRight)) return
+    // Let elements with their own horizontal drag behavior (the audio
+    // scrubber's <input type="range">, or anything opting out explicitly)
+    // handle the gesture exclusively instead of fighting over it.
+    const target = event.target as HTMLElement
+    if (target.closest('[data-swipe-ignore], input[type="range"]')) return
     startX.current = event.clientX
     startOffset.current = offset
     dragged.current = false

@@ -2,13 +2,15 @@ import { useMemo, useState } from 'react'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { useSelection } from '../hooks/useSelection'
 import { useNotes } from '../notes/useNotes'
-import { fuzzyMatch } from '../notes/fuzzySearch'
+import { fuzzySearch } from '../search/fuzzySearch'
 import RecordButton from '../notes/RecordButton'
+import UploadAudioButton from '../notes/UploadAudioButton'
 import NoteCard from '../notes/NoteCard'
 import Banner from '../components/Banner'
 import BulkActionBar from '../components/BulkActionBar'
 import LoadMoreButton from '../components/LoadMoreButton'
 import Button from '../components/Button'
+import SearchInput from '../components/SearchInput'
 
 function SkeletonCard() {
   return (
@@ -17,15 +19,6 @@ function SkeletonCard() {
       <div className="mt-4 h-3 w-full rounded bg-border" />
       <div className="mt-2 h-3 w-2/3 rounded bg-border" />
     </div>
-  )
-}
-
-function SearchIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
   )
 }
 
@@ -56,7 +49,9 @@ export default function Dashboard() {
 
   const filteredNotes = useMemo(() => {
     if (!query.trim()) return notes
-    return notes.filter((note) => fuzzyMatch(query, note.finalTranscript ?? note.roughTranscript ?? ''))
+    return notes.filter(
+      (note) => fuzzySearch(query, note.finalTranscript ?? note.roughTranscript ?? '').matches,
+    )
   }, [notes, query])
 
   const handleBulkDelete = async () => {
@@ -88,20 +83,14 @@ export default function Dashboard() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col px-4 pb-16 sm:px-6">
       <RecordButton onComplete={uploadRecording} />
+      <div className="mb-4 flex justify-center">
+        <UploadAudioButton onUpload={uploadRecording} />
+      </div>
 
       {notes.length > 0 && (
-        <label className="relative mb-4 block">
-          <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-ink-soft">
-            <SearchIcon />
-          </span>
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search your notes…"
-            className="w-full rounded-full border border-border bg-surface py-2.5 pl-10 pr-4 text-[16px] text-ink outline-none focus:border-brand-400"
-          />
-        </label>
+        <div className="mb-4">
+          <SearchInput value={query} onChange={setQuery} placeholder="Search your notes…" />
+        </div>
       )}
 
       {bannerMessage && (
@@ -181,6 +170,7 @@ export default function Dashboard() {
               onRetranscribe={retranscribeNote}
               selected={selection.isSelected(note.id)}
               onToggleSelect={selection.toggle}
+              searchQuery={query}
             />
           ))
         )}

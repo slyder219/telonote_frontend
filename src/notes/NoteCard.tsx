@@ -3,6 +3,7 @@ import { formatDuration, formatRelativeTime } from './format'
 import Button from '../components/Button'
 import SwipeableRow from '../components/SwipeableRow'
 import AudioScrubber from './AudioScrubber'
+import Highlight from '../search/Highlight'
 import type { ClientNote } from './types'
 
 function PlayIcon() {
@@ -113,6 +114,7 @@ interface NoteCardProps {
   onRetranscribe: (id: string) => void
   selected: boolean
   onToggleSelect: (id: string) => void
+  searchQuery: string
 }
 
 export default function NoteCard({
@@ -125,6 +127,7 @@ export default function NoteCard({
   onRetranscribe,
   selected,
   onToggleSelect,
+  searchQuery,
 }: NoteCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState(note.finalTranscript ?? '')
@@ -333,7 +336,9 @@ export default function NoteCard({
               </div>
             </div>
           ) : transcript ? (
-            <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-ink">{transcript}</p>
+            <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-ink">
+              <Highlight text={transcript} query={searchQuery} />
+            </p>
           ) : note.status === 'uploading' || note.status === 'processing' ? (
             <p className="text-sm italic text-ink-soft">Transcribing your note…</p>
           ) : (

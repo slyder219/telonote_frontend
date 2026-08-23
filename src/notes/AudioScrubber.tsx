@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ChangeEvent, RefObject } from 'react'
 import { formatDuration } from './format'
+import { resolveDuration } from './audioUtils'
 
 interface AudioScrubberProps {
   audioRef: RefObject<HTMLAudioElement | null>
@@ -13,17 +14,23 @@ export default function AudioScrubber({ audioRef }: AudioScrubberProps) {
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
+    let cancelled = false
 
     const onTimeUpdate = () => setCurrentTime(audio.currentTime)
-    const onLoadedMetadata = () => setDuration(Number.isFinite(audio.duration) ? audio.duration : 0)
+    const onLoadedMetadata = () => {
+      resolveDuration(audio).then((value) => {
+        if (!cancelled) setDuration(value)
+      })
+    }
     const onEnded = () => setCurrentTime(0)
 
     audio.addEventListener('timeupdate', onTimeUpdate)
     audio.addEventListener('loadedmetadata', onLoadedMetadata)
     audio.addEventListener('ended', onEnded)
-    if (Number.isFinite(audio.duration)) setDuration(audio.duration)
+    if (audio.readyState >= 1) onLoadedMetadata()
 
     return () => {
+      cancelled = true
       audio.removeEventListener('timeupdate', onTimeUpdate)
       audio.removeEventListener('loadedmetadata', onLoadedMetadata)
       audio.removeEventListener('ended', onEnded)

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Button from '../components/Button'
 import TextField from '../components/TextField'
+import Highlight from '../search/Highlight'
 import type { ContextItem, UpdateContextItemInput } from '../api/context'
 
 function PencilIcon() {
@@ -42,9 +43,17 @@ interface ContextItemCardProps {
   onDelete: (id: string) => void
   selected: boolean
   onToggleSelect: (id: string) => void
+  searchQuery: string
 }
 
-export default function ContextItemCard({ item, onUpdate, onDelete, selected, onToggleSelect }: ContextItemCardProps) {
+export default function ContextItemCard({
+  item,
+  onUpdate,
+  onDelete,
+  selected,
+  onToggleSelect,
+  searchQuery,
+}: ContextItemCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [term, setTerm] = useState(item.term)
   const [description, setDescription] = useState(item.description ?? '')
@@ -88,10 +97,12 @@ export default function ContextItemCard({ item, onUpdate, onDelete, selected, on
           />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold text-ink">{item.term}</span>
+              <span className="font-semibold text-ink">
+                <Highlight text={item.term} query={searchQuery} />
+              </span>
               {item.category && (
                 <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-600">
-                  {item.category}
+                  <Highlight text={item.category} query={searchQuery} />
                 </span>
               )}
               {item.always_include && (
@@ -101,7 +112,9 @@ export default function ContextItemCard({ item, onUpdate, onDelete, selected, on
               )}
             </div>
             {item.description && !isEditing && (
-              <p className="mt-1.5 text-sm text-ink-soft">{item.description}</p>
+              <p className="mt-1.5 text-sm text-ink-soft">
+                <Highlight text={item.description} query={searchQuery} />
+              </p>
             )}
           </div>
         </div>
@@ -122,7 +135,7 @@ export default function ContextItemCard({ item, onUpdate, onDelete, selected, on
         <div className="mt-2 flex flex-wrap gap-1.5">
           {item.aliases.map((alias) => (
             <span key={alias} className="rounded-full bg-paper px-2.5 py-0.5 text-xs text-ink-soft">
-              {alias}
+              <Highlight text={alias} query={searchQuery} />
             </span>
           ))}
         </div>

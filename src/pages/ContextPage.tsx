@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { useSelection } from '../hooks/useSelection'
 import { useContextItems } from '../context/useContextItems'
 import { useContextCandidates } from '../context/useContextCandidates'
+import { fuzzyMatchesAny } from '../search/fuzzySearch'
 import ContextItemCard from '../context/ContextItemCard'
 import AddItemForm from '../context/AddItemForm'
 import CandidateCard from '../context/CandidateCard'
@@ -10,6 +11,7 @@ import Banner from '../components/Banner'
 import BulkActionBar from '../components/BulkActionBar'
 import Button from '../components/Button'
 import LoadMoreButton from '../components/LoadMoreButton'
+import SearchInput from '../components/SearchInput'
 
 type Tab = 'committed' | 'candidates'
 
@@ -64,6 +66,26 @@ export default function ContextPage() {
   const candidateSelection = useSelection()
   const [visibleItems, setVisibleItems] = useState(PAGE_SIZE)
   const [visibleCandidates, setVisibleCandidates] = useState(PAGE_SIZE)
+  const [query, setQuery] = useState('')
+
+  const filteredItems = useMemo(() => {
+    if (!query.trim()) return itemsState.items
+    return itemsState.items.filter((item) =>
+      fuzzyMatchesAny(query, [item.term, item.description, item.category, ...item.aliases]),
+    )
+  }, [itemsState.items, query])
+
+  const filteredCandidates = useMemo(() => {
+    if (!query.trim()) return candidatesState.candidates
+    return candidatesState.candidates.filter((candidate) =>
+      fuzzyMatchesAny(query, [
+        candidate.proposed_term,
+        candidate.proposed_description,
+        candidate.proposed_category,
+        ...candidate.aliases,
+      ]),
+    )
+  }, [candidatesState.candidates, query])
 
   // Committing or merging a candidate creates/mutates a context item
   // server-side, but the resolved-candidate response doesn't include that
@@ -137,6 +159,12 @@ export default function ContextPage() {
         </button>
       </div>
 
+      {(itemsState.items.length > 0 || candidatesState.candidates.length > 0) && (
+        <div className="mt-4">
+          <SearchInput value={query} onChange={setQuery} placeholder="Search your context…" />
+        </div>
+      )}
+
       {tab === 'committed' && itemsState.bannerMessage && (
         <div className="mt-4">
           <Banner message={itemsState.bannerMessage} onDismiss={itemsState.dismissBanner} />
@@ -154,9 +182,9 @@ export default function ContextPage() {
             <AddItemForm onAdd={itemsState.createItem} />
 
             <SelectAllRow
-              total={itemsState.items.length}
+              total={filteredItems.length}
               count={itemSelection.count}
-              onSelectAll={() => itemSelection.selectAll(itemsState.items.map((i) => i.id))}
+              onSelectAll={() => itemSelection.selectAll(filteredItems.map((i) => i.id))}
               onClear={itemSelection.clear}
             />
 
@@ -202,9 +230,13 @@ export default function ContextPage() {
               <div className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-ink-soft">
                 No committed context yet.
               </div>
+            ) : filteredItems.length === 0 ? (
+              <div className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-ink-soft">
+                No items match "{query}".
+              </div>
             ) : (
               <>
-                {itemsState.items.slice(0, visibleItems).map((item) => (
+                {(query.trim() ? filteredItems : filteredItems.slice(0, visibleItems)).map((item) => (
                   <ContextItemCard
                     key={item.id}
                     item={item}
@@ -212,9 +244,10 @@ export default function ContextPage() {
                     onDelete={itemsState.deleteItem}
                     selected={itemSelection.isSelected(item.id)}
                     onToggleSelect={itemSelection.toggle}
+                    searchQuery={query}
                   />
                 ))}
-                {itemsState.items.length > visibleItems && (
+                {!query.trim() && filteredItems.length > visibleItems && (
                   <LoadMoreButton onClick={() => setVisibleItems((n) => n + PAGE_SIZE)} isLoading={false} />
                 )}
               </>
@@ -223,9 +256,9 @@ export default function ContextPage() {
         ) : (
           <>
             <SelectAllRow
-              total={candidatesState.candidates.length}
+              total={filteredCandidates.length}
               count={candidateSelection.count}
-              onSelectAll={() => candidateSelection.selectAll(candidatesState.candidates.map((c) => c.id))}
+              onSelectAll={() => candidateSelection.selectAll(filteredCandidates.map((c) => c.id))}
               onClear={candidateSelection.clear}
             />
 
@@ -258,22 +291,29 @@ export default function ContextPage() {
               <div className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-ink-soft">
                 No pending candidates. New ones show up here after a note is transcribed.
               </div>
+            ) : filteredCandidates.length === 0 ? (
+              <div className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-ink-soft">
+                No candidates match "{query}".
+              </div>
             ) : (
               <>
-                {candidatesState.candidates.slice(0, visibleCandidates).map((candidate) => (
-                  <CandidateCard
-                    key={candidate.id}
-                    candidate={candidate}
-                    existingItems={itemsState.items}
-                    onEdit={candidatesState.editCandidate}
-                    onCommit={handleCommit}
-                    onMerge={handleMerge}
-                    onIgnore={candidatesState.ignore}
-                    selected={candidateSelection.isSelected(candidate.id)}
-                    onToggleSelect={candidateSelection.toggle}
-                  />
-                ))}
-                {candidatesState.candidates.length > visibleCandidates && (
+                {(query.trim() ? filteredCandidates : filteredCandidates.slice(0, visibleCandidates)).map(
+                  (candidate) => (
+                    <CandidateCard
+                      key={candidate.id}
+                      candidate={candidate}
+                      existingItems={itemsState.items}
+                      onEdit={candidatesState.editCandidate}
+                      onCommit={handleCommit}
+                      onMerge={handleMerge}
+                      onIgnore={candidatesState.ignore}
+                      selected={candidateSelection.isSelected(candidate.id)}
+                      onToggleSelect={candidateSelection.toggle}
+                      searchQuery={query}
+                    />
+                  ),
+                )}
+                {!query.trim() && filteredCandidates.length > visibleCandidates && (
                   <LoadMoreButton onClick={() => setVisibleCandidates((n) => n + PAGE_SIZE)} isLoading={false} />
                 )}
               </>
