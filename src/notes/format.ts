@@ -52,3 +52,17 @@ function extensionForMimeType(mimeType: string): string {
 export function filenameForMimeType(mimeType: string): string {
   return `note.${extensionForMimeType(mimeType)}`
 }
+
+/**
+ * Recorder and transcoded blobs have no real filename to fall back on, so
+ * their extension has to be derived from the mime type — that's what
+ * filenameForMimeType is for. A file picked from disk already has a real
+ * name (and therefore a real, trustworthy extension); deriving one from its
+ * mime type instead can silently mislabel it — e.g. a real .m4a commonly
+ * reports as audio/x-m4a, which doesn't match any known mime type and used
+ * to fall through to a hardcoded "webm" extension, corrupting the upload.
+ */
+export function filenameForUpload(blob: Blob, mimeType: string): string {
+  if (blob instanceof File && blob.name) return blob.name
+  return filenameForMimeType(mimeType)
+}

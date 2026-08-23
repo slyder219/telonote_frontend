@@ -4,7 +4,7 @@ import * as notesApi from '../api/notes'
 import type { NoteDetail, NoteSummary } from '../api/notes'
 import { ApiError, NetworkError } from '../api/client'
 import type { QuotaInfo } from '../api/client'
-import { filenameForMimeType } from './format'
+import { filenameForUpload } from './format'
 import { MAX_AUDIO_BYTES } from './audioFileValidation'
 import type { ClientNote } from './types'
 
@@ -221,7 +221,7 @@ export function useNotes() {
 
       try {
         const { data: created, quota: quotaInfo } = await callWithAuthRetry((token) =>
-          notesApi.createNote(blob, filenameForMimeType(mimeType), token),
+          notesApi.createNote(blob, filenameForUpload(blob, mimeType), token),
         )
         if (quotaInfo) setQuota(quotaInfo)
         localAudioUrls.current.delete(tempId)
@@ -269,7 +269,7 @@ export function useNotes() {
       setNotes((current) =>
         current.map((n) => (n.id === id ? { ...n, status: 'uploading', uploadError: undefined } : n)),
       )
-      callWithAuthRetry((token) => notesApi.createNote(blob, filenameForMimeType(mimeType), token))
+      callWithAuthRetry((token) => notesApi.createNote(blob, filenameForUpload(blob, mimeType), token))
         .then(({ data: created, quota: quotaInfo }) => {
           if (quotaInfo) setQuota(quotaInfo)
           const localUrl = localAudioUrls.current.get(id)
