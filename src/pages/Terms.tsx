@@ -102,9 +102,9 @@ export default function Terms() {
 
       <h2 className={h2}>9. Governing Law</h2>
       <p className={p}>
-        These Terms are governed by the laws applicable in our principal place of business, without regard to
-        conflict-of-law principles.{' '}
-        <em>[Telonote: fill in your actual state/country of incorporation or residence here.]</em>
+        These Terms are governed by the laws of the Commonwealth of Pennsylvania, USA, without regard to
+        conflict-of-law principles. Telonote is offered as a globally available service; using it from outside
+        Pennsylvania doesn't change which law governs these Terms.
       </p>
 
       <h2 className={h2}>10. Contact</h2>
