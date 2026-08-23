@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom'
 import { usePageMeta } from '../hooks/usePageMeta'
+import { useAuth } from '../auth/AuthContext'
 import Button from '../components/Button'
 
 export default function Pricing() {
   usePageMeta('Pricing — Telonote')
+  const { isAuthenticated } = useAuth()
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12 sm:px-6">
@@ -23,9 +25,9 @@ export default function Pricing() {
             <li>Unlimited saved notes</li>
             <li>Search by text or meaning</li>
           </ul>
-          <Link to="/signup" className="mt-6 block">
+          <Link to={isAuthenticated ? '/dashboard' : '/signup'} className="mt-6 block">
             <Button variant="secondary" fullWidth>
-              Get started
+              {isAuthenticated ? 'Go to your dashboard' : 'Get started'}
             </Button>
           </Link>
         </div>
@@ -41,9 +43,9 @@ export default function Pricing() {
             <li>10x the daily audio allowance</li>
             <li>Re-transcription counts against the same generous cap</li>
           </ul>
-          <Link to="/signup" className="mt-6 block">
+          <Link to={isAuthenticated ? '/subscription' : '/signup'} className="mt-6 block">
             <Button variant="primary" fullWidth>
-              Get started
+              {isAuthenticated ? 'Upgrade to Pro' : 'Get started'}
             </Button>
           </Link>
         </div>

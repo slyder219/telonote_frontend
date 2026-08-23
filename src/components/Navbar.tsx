@@ -26,6 +26,9 @@ export default function Navbar() {
             <NavLink to="/context" className={navLinkClass}>
               My Context
             </NavLink>
+            <NavLink to="/subscription" className={navLinkClass}>
+              Subscription
+            </NavLink>
             <Button variant="secondary" className="!px-3.5 !py-2 !text-sm" onClick={logout}>
               Log out
             </Button>

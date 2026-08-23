@@ -9,6 +9,7 @@ import Login from './pages/Login'
 import Signup from './pages/Signup'
 import Dashboard from './pages/Dashboard'
 import ContextPage from './pages/ContextPage'
+import Subscription from './pages/Subscription'
 import Pricing from './pages/Pricing'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
@@ -54,6 +55,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ContextPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/subscription"
+            element={
+              <ProtectedRoute>
+                <Subscription />
               </ProtectedRoute>
             }
           />

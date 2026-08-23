@@ -95,7 +95,7 @@ The `detail` string is human-readable and safe to show directly, or build your o
 
 **This is synchronous and runs the full pipeline** before responding: rough transcription → semantic context lookup (+ any `always_include` items) → final transcription with that context folded in. Expect this call to take a couple of seconds (typically ~2-3s) - show a loading/processing state, don't treat that latency as a failure.
 
-Audio is always stored first, independent of everything else - if a transcription step fails partway, the note still exists with whatever progress was made (e.g. a rough transcript but no final one) rather than the upload being lost. Audio must be a **compressed** format - reject/re-encode uncompressed recordings (`wav`, `aiff`, `flac`, raw PCM) client-side before uploading if that's how your recorder captures it. Accepted: mp3, m4a/aac, ogg, webm, opus, 3gp, amr, mp4 (by content-type or file extension).
+Audio is always stored first, independent of everything else - if a transcription step fails partway, the note still exists with whatever progress was made (e.g. a rough transcript but no final one) rather than the upload being lost. Audio must be a **compressed** format - reject/re-encode uncompressed recordings (`wav`, `aiff`, `flac`, raw PCM) client-side before uploading if that's how your recorder captures it. Accepted: mp3, m4a/aac, ogg, webm, opus, 3gp, amr, mp4 (by content-type or file extension) - **codec parameters on the content-type are fine** (e.g. `audio/webm;codecs=opus`, which is what `MediaRecorder` actually sends in most browsers) - they're stripped before matching, so don't worry about sending the "clean" form.
 
 **Max file size: 24MB** - this is a hard ceiling from OpenAI's transcription API (25MB), not an arbitrary choice. This is a *size* limit, not a duration one - how much recording time fits depends entirely on the encoding bitrate. A low-bitrate voice codec (~24-32kbps, e.g. Opus) can fit close to 2 hours in that budget; a typical 64-128kbps recording will only fit roughly 25-50 minutes. If you want to support long recordings, encode at a low bitrate client-side.
 
@@ -157,13 +157,18 @@ There's no relevance-score cutoff - it always returns up to `limit` results rank
 Response `200`: same full shape as `POST /notes`'s response. `404` if not found/not yours/already deleted.
 
 ### `GET /notes/{note_id}/audio` — fetch the stored recording
-Response `200`: the raw audio bytes, `Content-Type` set to the stored `audio_mime_type` (e.g. `audio/mpeg`), `Content-Length` set. `404` if the note doesn't exist/isn't yours/is deleted, or if it has no audio stored.
+Response `200`: the raw audio bytes, `Content-Type` set to the stored `audio_mime_type` (e.g. `audio/mpeg`), `Content-Length` set, and now also `Content-Disposition: attachment; filename="note-{id}.{ext}"` with the correct extension derived from the actual stored format (`.mp3`, `.m4a`, `.webm`, etc. - never hardcode `.webm`, and you don't need to guess the extension yourself anymore, read it from this header). `404` if the note doesn't exist/isn't yours/is deleted, or if it has no audio stored.
 
 **Important:** this needs the same `Authorization: Bearer <access_token>` header as everything else - a plain `<audio src="https://.../notes/{id}/audio">` tag will **not** work, since browsers don't attach custom headers to a bare resource load. Fetch it with JS instead and build a blob URL:
 ```js
 const res = await fetch(`${API_BASE}/notes/${id}/audio`, { headers: { Authorization: `Bearer ${accessToken}` } });
 const blob = await res.blob();
 audioEl.src = URL.createObjectURL(blob); // revoke with URL.revokeObjectURL when done with it
+```
+For a "download" action specifically, pull the filename out of the response header instead of inventing one:
+```js
+const cd = res.headers.get('content-disposition'); // e.g. attachment; filename="note-<id>.mp3"
+const filename = cd?.match(/filename="([^"]+)"/)?.[1] ?? `note-${id}`;
 ```
 
 ### `POST /notes/{note_id}/retranscribe` — re-run transcription on the stored audio
@@ -256,6 +261,42 @@ Not a frontend-triggered action - happens automatically in the background whenev
 
 Each candidate is checked against existing items/aliases/pending candidates (exact match, no embedding cost) first, and only falls through to an embedding-based near-duplicate check against existing item embeddings if it survives that - avoiding wasted embedding calls on obvious repeats.
 
-## Not built yet (planned)
+## Billing (Paddle)
+
+Checkout itself is a **client-side flow** (Paddle.js), not a backend redirect - the backend's job is just to hand the frontend what it needs to call `Paddle.Checkout.open()` correctly, and to receive/apply the resulting subscription state via webhook.
+
+### `GET /billing/checkout-info`
+`Authorization: Bearer <access_token>`. Response `200`:
+```json
+{
+  "price_ids": { "pro_monthly": "pri_xxx", "pro_yearly": "pri_yyy" },
+  "customer_email": "user@example.com",
+  "custom_data": { "user_id": "uuid" },
+  "environment": "sandbox"
+}
+```
+Use `environment` for `Paddle.Environment.set(...)`, then call `Paddle.Checkout.open()` yourself with one of `price_ids`, `customer: { email: customer_email }` (avoids Paddle creating a duplicate customer for an email we already know), and **`customData: custom_data` passed through unchanged**. That last part is load-bearing: it's the only way the webhook can be linked back to the right user - don't drop or modify it.
+
+### `POST /billing/portal-session`
+`Authorization: Bearer <access_token>`, no body. Generates a Paddle-hosted customer portal URL (payment method updates, invoices, cancel/pause - all handled by Paddle, not us) and redirect the user to it.
+Response `200`: `{ "url": "https://..." }`.
+Errors: `400` if this user has no Paddle customer on file yet (hasn't subscribed), `503` if billing isn't configured server-side, `502` if Paddle's API itself rejects the call.
+
+### `GET /billing/status`
+`Authorization: Bearer <access_token>`. This user's cached subscription state - use this to gate access in the UI without needing to decode anything from the JWT (subscription state isn't in the access token).
+Response `200`:
+```json
+{
+  "subscription_status": "active",
+  "subscription_type": "pro",
+  "subscription_started_at": "2026-08-23T00:00:00Z",
+  "subscription_expires_at": "2026-09-23T00:00:00Z",
+  "subscription_scheduled_change_at": null
+}
+```
+All fields `null` if the user has never subscribed. `subscription_status` follows Paddle's own status model - `trialing`/`active`/`past_due` should all be treated as full access (Paddle Retain auto-retries failed payments during `past_due` - show a billing-issue banner linking to the portal session above, don't cut access immediately); `paused`/`canceled`/`null` means no access. If `subscription_scheduled_change_at` is set on an otherwise-active subscription, access should continue until that instant, not before.
+
+### `POST /billing/paddle/webhook`
+**Not part of the frontend's integration** - this is the notification destination URL configured directly in the Paddle dashboard (Developer tools > Notifications), not something any of our own clients call. No bearer auth (Paddle can't send our JWTs) - authenticated instead via Paddle's own HMAC request-signing, verified server-side. Subscribe this destination to at least `subscription.created` and `subscription.updated`.
 
 - User settings (`/settings`)
