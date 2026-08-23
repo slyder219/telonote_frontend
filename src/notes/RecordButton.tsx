@@ -53,34 +53,36 @@ export default function RecordButton({ onComplete, quota }: RecordButtonProps) {
           )}
         </div>
 
-        <div className="relative flex items-center justify-center" style={{ width: RING_SIZE, height: RING_SIZE }}>
-          {showQuotaWarning && <QuotaRing percentRemaining={percentRemaining} size={RING_SIZE} />}
-          <button
-            type="button"
-            onClick={handlePress}
-            disabled={isRequesting || (isExhausted && !isRecording)}
-            aria-label={isRecording ? 'Stop and send recording' : 'Start recording'}
-            className={`relative flex h-24 w-24 items-center justify-center rounded-full text-white shadow-lg transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-              isRecording
-                ? 'bg-red-500 shadow-red-500/30'
-                : 'bg-brand-500 shadow-brand-500/30 hover:bg-brand-600'
-            }`}
-          >
-            {isRecording && (
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400/40" />
-            )}
-            {isRequesting ? (
-              <span className="h-7 w-7 animate-spin rounded-full border-2 border-white border-t-transparent" />
-            ) : isRecording ? (
-              <span className="relative h-6 w-6 rounded-md bg-white" />
-            ) : (
-              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="relative">
-                <rect x="9" y="3" width="6" height="12" rx="3" fill="#fff" />
-                <path d="M6 11a6 6 0 0 0 12 0" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-                <path d="M12 17v3" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            )}
-          </button>
+        <div className="flex justify-center">
+          <div className="relative flex items-center justify-center" style={{ width: RING_SIZE, height: RING_SIZE }}>
+            {showQuotaWarning && <QuotaRing percentRemaining={percentRemaining} size={RING_SIZE} />}
+            <button
+              type="button"
+              onClick={handlePress}
+              disabled={isRequesting || (isExhausted && !isRecording)}
+              aria-label={isRecording ? 'Stop and send recording' : 'Start recording'}
+              className={`relative flex h-24 w-24 items-center justify-center rounded-full text-white shadow-lg transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                isRecording
+                  ? 'bg-red-500 shadow-red-500/30'
+                  : 'bg-brand-500 shadow-brand-500/30 hover:bg-brand-600'
+              }`}
+            >
+              {isRecording && (
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400/40" />
+              )}
+              {isRequesting ? (
+                <span className="h-7 w-7 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              ) : isRecording ? (
+                <span className="relative h-6 w-6 rounded-md bg-white" />
+              ) : (
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="relative">
+                  <rect x="9" y="3" width="6" height="12" rx="3" fill="#fff" />
+                  <path d="M6 11a6 6 0 0 0 12 0" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M12 17v3" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
