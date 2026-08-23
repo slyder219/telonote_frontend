@@ -71,7 +71,7 @@ async function rawFetch(baseUrl: string, path: string, init: RequestInit): Promi
   }
 }
 
-export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
+async function fetchWithFallback(path: string, options: RequestOptions): Promise<Response> {
   const { method = 'GET', body, accessToken, withCredentials = true, signal } = options
   const isFormData = body instanceof FormData
 
@@ -105,9 +105,18 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     throw new ApiError(response.status, await extractErrorMessage(response))
   }
 
+  return response
+}
+
+export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const response = await fetchWithFallback(path, options)
   if (response.status === 204) {
     return undefined as T
   }
-
   return (await response.json()) as T
+}
+
+export async function apiFetchBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
+  const response = await fetchWithFallback(path, options)
+  return response.blob()
 }

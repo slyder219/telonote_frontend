@@ -66,29 +66,34 @@ All require `Authorization: Bearer <access_token>`. A note belongs to exactly on
 ### `POST /notes` — upload a new voice note
 `multipart/form-data` with one field: `audio` (the audio file).
 
-**Current scope is deliberately minimal:** this stores the audio and returns immediately with no transcript yet - it does **not** run transcription/context/embeddings (that pipeline exists in `app/ai/` and is tested, just not wired into this endpoint yet). Treat every note right now as "recorded, not yet processed."
+**This is synchronous and runs the full pipeline** before responding: rough transcription → semantic context lookup (+ any `always_include` items) → final transcription with that context folded in. Expect this call to take a couple of seconds (typically ~2-3s) - show a loading/processing state, don't treat that latency as a failure.
 
-Audio must be a **compressed** format - reject/re-encode uncompressed recordings (`wav`, `aiff`, `flac`, raw PCM) client-side before uploading if that's how your recorder captures it. Accepted: mp3, m4a/aac, ogg, webm, opus, 3gp, amr, mp4 (by content-type or file extension).
+Audio is always stored first, independent of everything else - if a transcription step fails partway, the note still exists with whatever progress was made (e.g. a rough transcript but no final one) rather than the upload being lost. Audio must be a **compressed** format - reject/re-encode uncompressed recordings (`wav`, `aiff`, `flac`, raw PCM) client-side before uploading if that's how your recorder captures it. Accepted: mp3, m4a/aac, ogg, webm, opus, 3gp, amr, mp4 (by content-type or file extension).
 
-Response `201` — a note object with null transcript/model/timing fields:
+Response `201`:
 ```json
 {
   "id": "uuid",
   "created_at": "2026-08-22T23:37:20Z",
   "duration_ms": null,
-  "rough_transcript": null,
-  "final_transcript": null,
-  "updated_at": "2026-08-22T23:37:20Z",
-  "rough_transcription_model": null,
-  "final_transcription_model": null,
-  "rough_transcription_ms": null,
-  "final_transcription_ms": null,
-  "total_processing_ms": null,
+  "rough_transcript": "Please schedule a follow-up with Dr. Kowalczyk about the Zafirion protocol next Tuesday.",
+  "final_transcript": "Please schedule a follow-up with Dr. Kowalczyk about the Zephyrion protocol next Tuesday.",
+  "updated_at": "2026-08-22T23:37:23Z",
+  "rough_transcription_model": "gpt-4o-mini-transcribe",
+  "final_transcription_model": "gpt-4o-transcribe",
+  "rough_transcription_ms": 1197,
+  "final_transcription_ms": 562,
+  "total_processing_ms": 2681,
   "audio_mime_type": "audio/mpeg",
   "audio_size_bytes": 92544
 }
 ```
+Any of the transcript/model/timing fields can come back `null` if that step failed or produced nothing - `final_transcript` in particular can be missing even when `rough_transcript` isn't. Treat a note with a real `final_transcript` as done; anything else as still show it, but don't assume it's final.
+
 The audio itself is stored (as bytes, directly in the database - no object storage yet). It is **not** returned in any response body; there's no `GET` for the raw audio yet either.
+
+Setting a real `final_transcript` here also kicks off **context candidate extraction** in the background (same as `PATCH`, see the Context section) - no separate call needed.
+
 Errors: `400` if the uploaded file is empty, or if it's not a recognized compressed audio format.
 
 ### `GET /notes` — list the caller's notes
@@ -101,6 +106,16 @@ Response `200`: array of note summaries (no `updated_at`/model/timing fields - u
 ### `GET /notes/{note_id}` — full detail
 Response `200`: same full shape as `POST /notes`'s response. `404` if not found/not yours/already deleted.
 
+### `GET /notes/{note_id}/audio` — fetch the stored recording
+Response `200`: the raw audio bytes, `Content-Type` set to the stored `audio_mime_type` (e.g. `audio/mpeg`), `Content-Length` set. `404` if the note doesn't exist/isn't yours/is deleted, or if it has no audio stored.
+
+**Important:** this needs the same `Authorization: Bearer <access_token>` header as everything else - a plain `<audio src="https://.../notes/{id}/audio">` tag will **not** work, since browsers don't attach custom headers to a bare resource load. Fetch it with JS instead and build a blob URL:
+```js
+const res = await fetch(`${API_BASE}/notes/${id}/audio`, { headers: { Authorization: `Bearer ${accessToken}` } });
+const blob = await res.blob();
+audioEl.src = URL.createObjectURL(blob); // revoke with URL.revokeObjectURL when done with it
+```
+
 ### `PATCH /notes/{note_id}` — edit the transcript
 Request:
 ```json
@@ -108,7 +123,7 @@ Request:
 ```
 Response `200`: full note object with the edit applied and `updated_at` bumped. Only `final_transcript` is editable right now. `404` if not found/not yours.
 
-Setting `final_transcript` here also kicks off **context candidate extraction** in the background (not part of this request's latency) - see the Context section below. This is the current stand-in trigger point until the real transcription pipeline is wired into `POST /notes`; extraction will run from there too once that lands, without any frontend change needed.
+Setting `final_transcript` here also kicks off **context candidate extraction** in the background (not part of this request's latency) - see the Context section below. Same as `POST /notes` - either path that produces a final transcript triggers it.
 
 ### `DELETE /notes/{note_id}`
 Soft delete. `204` on success, `404` if not found/not yours/already deleted.
@@ -161,7 +176,7 @@ The user can correct the AI's proposal before approving it. Request: any subset 
 Response `200`: updated candidate.
 
 ### `POST /context/candidates/{id}/commit`
-Turns the candidate into a brand-new context item (its aliases come along). Sets `status="added"`, `context_item_id` to the new item's id.
+Turns the candidate into a brand-new context item (its aliases come along, and its already-computed embedding carries over too - it's not recomputed). Sets `status="added"`, `context_item_id` to the new item's id.
 Response `200`: the resolved candidate. `409` if already resolved, or if a context item with that exact term already exists (use merge instead in that case).
 
 ### `POST /context/candidates/{id}/merge`
@@ -180,10 +195,9 @@ Response `200`, one result per id, so partial failures are visible instead of th
 ```
 
 ### How candidates get created
-Not a frontend-triggered action - happens automatically in the background whenever a note's `final_transcript` is set (currently: `PATCH /notes/{id}`; will also happen from `POST /notes` once the real transcription pipeline is wired in). A lightweight LLM (`gpt-5.4-mini`) extracts only genuinely-useful terms (people, companies, acronyms, jargon, unusual places - never ordinary vocabulary), each is checked against existing items/aliases/pending candidates (exact match) and existing item embeddings (semantic near-duplicate) to avoid obvious dupes, and survivors are inserted as `pending` candidates. A note can produce zero candidates - that's expected and common for a mundane note.
+Not a frontend-triggered action - happens automatically in the background whenever a note's `final_transcript` is set (both `POST /notes` and `PATCH /notes/{id}`). A lightweight LLM (`gpt-5.4-mini`) extracts only genuinely-useful terms (people, companies, acronyms, jargon, unusual places - never ordinary vocabulary), each is checked against existing items/aliases/pending candidates (exact match) and existing item embeddings (semantic near-duplicate) to avoid obvious dupes, and survivors are inserted as `pending` candidates. A note can produce zero candidates - that's expected and common for a mundane note.
 
 ## Not built yet (planned)
 
-- Wiring the transcription/context/embedding pipeline into `POST /notes` (rough transcribe → semantic context lookup → final transcribe) - candidate extraction is ready and will plug into that same point
 - User settings (`/settings`)
 - A way to fetch/play back the stored audio (currently write-only from the API's perspective)

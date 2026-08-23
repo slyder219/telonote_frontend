@@ -311,6 +311,24 @@ export function useNotes() {
     [callWithAuthRetry, showBanner],
   )
 
+  // Lazily fetches and caches the audio for a note that wasn't recorded in
+  // this session (no blob already in memory) — see GET /notes/{id}/audio.
+  // Bearer-token auth means a plain <audio src> can't be used; the fetched
+  // bytes get turned into an object URL instead.
+  const fetchAudioUrl = useCallback(
+    async (id: string) => {
+      const cached = localAudioUrls.current.get(id)
+      if (cached) return cached
+
+      const blob = await callWithAuthRetry((token) => notesApi.getNoteAudio(id, token))
+      const url = URL.createObjectURL(blob)
+      localAudioUrls.current.set(id, url)
+      setNotes((current) => current.map((note) => (note.id === id ? { ...note, localAudioUrl: url } : note)))
+      return url
+    },
+    [callWithAuthRetry],
+  )
+
   return {
     notes,
     isLoadingInitial,
@@ -322,5 +340,6 @@ export function useNotes() {
     discardUpload,
     editTranscript,
     deleteNoteById,
+    fetchAudioUrl,
   }
 }

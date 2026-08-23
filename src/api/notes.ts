@@ -1,4 +1,4 @@
-import { apiFetch } from './client'
+import { apiFetch, apiFetchBlob } from './client'
 
 export interface NoteSummary {
   id: string
@@ -60,4 +60,8 @@ export function deleteNote(id: string, accessToken: string) {
     accessToken,
     withCredentials: false,
   })
+}
+
+export function getNoteAudio(id: string, accessToken: string) {
+  return apiFetchBlob(`/notes/${id}/audio`, { accessToken, withCredentials: false })
 }

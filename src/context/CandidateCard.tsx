@@ -35,6 +35,8 @@ interface CandidateCardProps {
   onCommit: (id: string) => void
   onMerge: (id: string, contextItemId: string) => void
   onIgnore: (id: string) => void
+  selected: boolean
+  onToggleSelect: (id: string) => void
 }
 
 export default function CandidateCard({
@@ -44,6 +46,8 @@ export default function CandidateCard({
   onCommit,
   onMerge,
   onIgnore,
+  selected,
+  onToggleSelect,
 }: CandidateCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [term, setTerm] = useState(candidate.proposed_term)
@@ -88,18 +92,27 @@ export default function CandidateCard({
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-ink">{candidate.proposed_term}</span>
-            {candidate.proposed_category && (
-              <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-600">
-                {candidate.proposed_category}
-              </span>
+        <div className="flex min-w-0 items-start gap-3">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(candidate.id)}
+            aria-label={`Select ${candidate.proposed_term}`}
+            className="mt-1 h-4 w-4 shrink-0 accent-brand-500"
+          />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-ink">{candidate.proposed_term}</span>
+              {candidate.proposed_category && (
+                <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-600">
+                  {candidate.proposed_category}
+                </span>
+              )}
+            </div>
+            {candidate.proposed_description && !isEditing && (
+              <p className="mt-1.5 text-sm text-ink-soft">{candidate.proposed_description}</p>
             )}
           </div>
-          {candidate.proposed_description && !isEditing && (
-            <p className="mt-1.5 text-sm text-ink-soft">{candidate.proposed_description}</p>
-          )}
         </div>
 
         {!isEditing && (

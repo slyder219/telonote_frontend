@@ -40,9 +40,11 @@ interface ContextItemCardProps {
   item: ContextItem
   onUpdate: (id: string, input: UpdateContextItemInput) => void
   onDelete: (id: string) => void
+  selected: boolean
+  onToggleSelect: (id: string) => void
 }
 
-export default function ContextItemCard({ item, onUpdate, onDelete }: ContextItemCardProps) {
+export default function ContextItemCard({ item, onUpdate, onDelete, selected, onToggleSelect }: ContextItemCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [term, setTerm] = useState(item.term)
   const [description, setDescription] = useState(item.description ?? '')
@@ -76,23 +78,32 @@ export default function ContextItemCard({ item, onUpdate, onDelete }: ContextIte
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-ink">{item.term}</span>
-            {item.category && (
-              <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-600">
-                {item.category}
-              </span>
-            )}
-            {item.always_include && (
-              <span className="rounded-full bg-paper px-2.5 py-0.5 text-xs font-medium text-ink-soft">
-                Always included
-              </span>
+        <div className="flex min-w-0 items-start gap-3">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(item.id)}
+            aria-label={`Select ${item.term}`}
+            className="mt-1 h-4 w-4 shrink-0 accent-brand-500"
+          />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-ink">{item.term}</span>
+              {item.category && (
+                <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-600">
+                  {item.category}
+                </span>
+              )}
+              {item.always_include && (
+                <span className="rounded-full bg-paper px-2.5 py-0.5 text-xs font-medium text-ink-soft">
+                  Always included
+                </span>
+              )}
+            </div>
+            {item.description && !isEditing && (
+              <p className="mt-1.5 text-sm text-ink-soft">{item.description}</p>
             )}
           </div>
-          {item.description && !isEditing && (
-            <p className="mt-1.5 text-sm text-ink-soft">{item.description}</p>
-          )}
         </div>
 
         {!isEditing && (

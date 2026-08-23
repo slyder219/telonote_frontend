@@ -27,6 +27,7 @@ export default function Dashboard() {
     discardUpload,
     editTranscript,
     deleteNoteById,
+    fetchAudioUrl,
   } = useNotes()
 
   return (
@@ -63,6 +64,7 @@ export default function Dashboard() {
               onDelete={deleteNoteById}
               onRetryUpload={retryUpload}
               onDiscardUpload={discardUpload}
+              onRequestAudio={fetchAudioUrl}
             />
           ))
         )}

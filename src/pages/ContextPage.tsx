@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { usePageMeta } from '../hooks/usePageMeta'
+import { useSelection } from '../hooks/useSelection'
 import { useContextItems } from '../context/useContextItems'
 import { useContextCandidates } from '../context/useContextCandidates'
 import ContextItemCard from '../context/ContextItemCard'
 import AddItemForm from '../context/AddItemForm'
 import CandidateCard from '../context/CandidateCard'
 import Banner from '../components/Banner'
+import BulkActionBar from '../components/BulkActionBar'
+import Button from '../components/Button'
 
 type Tab = 'committed' | 'candidates'
 
@@ -19,12 +22,40 @@ function SkeletonCard() {
   )
 }
 
+function SelectAllRow({
+  total,
+  count,
+  onSelectAll,
+  onClear,
+}: {
+  total: number
+  count: number
+  onSelectAll: () => void
+  onClear: () => void
+}) {
+  if (total === 0) return null
+  const allSelected = count === total
+  return (
+    <label className="flex items-center gap-2 px-1 text-sm text-ink-soft">
+      <input
+        type="checkbox"
+        checked={allSelected}
+        onChange={() => (allSelected ? onClear() : onSelectAll())}
+        className="h-4 w-4 accent-brand-500"
+      />
+      Select all
+    </label>
+  )
+}
+
 export default function ContextPage() {
   usePageMeta('My Context — Telonote', { noindex: true })
   const [tab, setTab] = useState<Tab>('committed')
 
   const itemsState = useContextItems()
   const candidatesState = useContextCandidates()
+  const itemSelection = useSelection()
+  const candidateSelection = useSelection()
 
   // Committing or merging a candidate creates/mutates a context item
   // server-side, but the resolved-candidate response doesn't include that
@@ -37,6 +68,32 @@ export default function ContextPage() {
   const handleMerge = async (candidateId: string, contextItemId: string) => {
     await candidatesState.merge(candidateId, contextItemId)
     itemsState.refetch()
+  }
+
+  const handleBulkCommit = async () => {
+    const ids = [...candidateSelection.selectedIds]
+    candidateSelection.clear()
+    await candidatesState.bulkCommit(ids)
+    itemsState.refetch()
+  }
+
+  const handleBulkIgnore = async () => {
+    const ids = [...candidateSelection.selectedIds]
+    candidateSelection.clear()
+    await candidatesState.bulkIgnore(ids)
+  }
+
+  const handleBulkDeleteItems = async () => {
+    const ids = [...itemSelection.selectedIds]
+    if (!window.confirm(`Delete ${ids.length} item${ids.length === 1 ? '' : 's'}? This can't be undone.`)) return
+    itemSelection.clear()
+    await itemsState.bulkDelete(ids)
+  }
+
+  const handleBulkAlwaysInclude = async (value: boolean) => {
+    const ids = [...itemSelection.selectedIds]
+    itemSelection.clear()
+    await itemsState.bulkSetAlwaysInclude(ids, value)
   }
 
   return (
@@ -87,6 +144,43 @@ export default function ContextPage() {
         {tab === 'committed' ? (
           <>
             <AddItemForm onAdd={itemsState.createItem} />
+
+            <SelectAllRow
+              total={itemsState.items.length}
+              count={itemSelection.count}
+              onSelectAll={() => itemSelection.selectAll(itemsState.items.map((i) => i.id))}
+              onClear={itemSelection.clear}
+            />
+
+            {itemSelection.count > 0 && (
+              <BulkActionBar count={itemSelection.count} onClear={itemSelection.clear}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="!px-3 !py-1.5 !text-sm"
+                  onClick={() => handleBulkAlwaysInclude(true)}
+                >
+                  Always include: On
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="!px-3 !py-1.5 !text-sm"
+                  onClick={() => handleBulkAlwaysInclude(false)}
+                >
+                  Always include: Off
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="!px-3 !py-1.5 !text-sm !text-red-600"
+                  onClick={handleBulkDeleteItems}
+                >
+                  Delete
+                </Button>
+              </BulkActionBar>
+            )}
+
             {itemsState.isLoading ? (
               <>
                 <SkeletonCard />
@@ -107,35 +201,66 @@ export default function ContextPage() {
                   item={item}
                   onUpdate={itemsState.updateItem}
                   onDelete={itemsState.deleteItem}
+                  selected={itemSelection.isSelected(item.id)}
+                  onToggleSelect={itemSelection.toggle}
                 />
               ))
             )}
           </>
-        ) : candidatesState.isLoading ? (
-          <>
-            <SkeletonCard />
-            <SkeletonCard />
-          </>
-        ) : candidatesState.loadError ? (
-          <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-center text-sm text-red-500">
-            {candidatesState.loadError}
-          </div>
-        ) : candidatesState.candidates.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-ink-soft">
-            No pending candidates. New ones show up here after a note is transcribed.
-          </div>
         ) : (
-          candidatesState.candidates.map((candidate) => (
-            <CandidateCard
-              key={candidate.id}
-              candidate={candidate}
-              existingItems={itemsState.items}
-              onEdit={candidatesState.editCandidate}
-              onCommit={handleCommit}
-              onMerge={handleMerge}
-              onIgnore={candidatesState.ignore}
+          <>
+            <SelectAllRow
+              total={candidatesState.candidates.length}
+              count={candidateSelection.count}
+              onSelectAll={() => candidateSelection.selectAll(candidatesState.candidates.map((c) => c.id))}
+              onClear={candidateSelection.clear}
             />
-          ))
+
+            {candidateSelection.count > 0 && (
+              <BulkActionBar count={candidateSelection.count} onClear={candidateSelection.clear}>
+                <Button type="button" variant="primary" className="!px-3 !py-1.5 !text-sm" onClick={handleBulkCommit}>
+                  Commit
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="!px-3 !py-1.5 !text-sm"
+                  onClick={handleBulkIgnore}
+                >
+                  Ignore
+                </Button>
+              </BulkActionBar>
+            )}
+
+            {candidatesState.isLoading ? (
+              <>
+                <SkeletonCard />
+                <SkeletonCard />
+              </>
+            ) : candidatesState.loadError ? (
+              <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-center text-sm text-red-500">
+                {candidatesState.loadError}
+              </div>
+            ) : candidatesState.candidates.length === 0 ? (
+              <div className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-ink-soft">
+                No pending candidates. New ones show up here after a note is transcribed.
+              </div>
+            ) : (
+              candidatesState.candidates.map((candidate) => (
+                <CandidateCard
+                  key={candidate.id}
+                  candidate={candidate}
+                  existingItems={itemsState.items}
+                  onEdit={candidatesState.editCandidate}
+                  onCommit={handleCommit}
+                  onMerge={handleMerge}
+                  onIgnore={candidatesState.ignore}
+                  selected={candidateSelection.isSelected(candidate.id)}
+                  onToggleSelect={candidateSelection.toggle}
+                />
+              ))
+            )}
+          </>
         )}
       </div>
     </div>

@@ -119,3 +119,22 @@ export function ignoreCandidate(id: string, accessToken: string) {
     withCredentials: false,
   })
 }
+
+export interface BulkCandidateResult {
+  id: string
+  ok: boolean
+  detail: string
+}
+
+export function bulkResolveCandidates(
+  ids: string[],
+  action: 'commit' | 'ignore',
+  accessToken: string,
+) {
+  return apiFetch<BulkCandidateResult[]>('/context/candidates/bulk', {
+    method: 'POST',
+    body: { ids, action },
+    accessToken,
+    withCredentials: false,
+  })
+}

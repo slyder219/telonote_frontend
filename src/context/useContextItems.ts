@@ -138,6 +138,80 @@ export function useContextItems() {
     [callWithAuthRetry, showBanner],
   )
 
+  // There's no bulk endpoint for items (only candidates has one) — this fans
+  // the existing per-item calls out in parallel and reconciles per result,
+  // so a partial failure only rolls back the items that actually failed.
+  const bulkDelete = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return
+      const idSet = new Set(ids)
+      let removed: { index: number; item: ContextItem }[] = []
+      setItems((current) => {
+        removed = current.map((item, index) => ({ index, item })).filter(({ item }) => idSet.has(item.id))
+        return current.filter((item) => !idSet.has(item.id))
+      })
+
+      const results = await Promise.allSettled(
+        ids.map((id) => callWithAuthRetry((token) => contextApi.deleteContextItem(id, token))),
+      )
+      const failedIds = new Set(ids.filter((_, i) => results[i].status === 'rejected'))
+      if (failedIds.size > 0) {
+        setItems((current) => {
+          const next = [...current]
+          removed
+            .filter(({ item }) => failedIds.has(item.id))
+            .forEach(({ index, item }) => next.splice(Math.min(index, next.length), 0, item))
+          return next
+        })
+        const succeeded = ids.length - failedIds.size
+        showBanner(
+          succeeded > 0
+            ? `Deleted ${succeeded}, ${failedIds.size} failed.`
+            : `Couldn't delete ${failedIds.size === 1 ? 'that item' : 'those items'}.`,
+        )
+      }
+    },
+    [callWithAuthRetry, showBanner],
+  )
+
+  const bulkSetAlwaysInclude = useCallback(
+    async (ids: string[], value: boolean) => {
+      if (ids.length === 0) return
+      const idSet = new Set(ids)
+      const previous = new Map(items.filter((item) => idSet.has(item.id)).map((item) => [item.id, item]))
+      setItems((current) =>
+        current.map((item) => (idSet.has(item.id) ? { ...item, always_include: value } : item)),
+      )
+
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          callWithAuthRetry((token) => contextApi.updateContextItem(id, { always_include: value }, token)),
+        ),
+      )
+
+      const failedIds: string[] = []
+      setItems((current) =>
+        current.map((item) => {
+          const index = ids.indexOf(item.id)
+          if (index === -1) return item
+          const result = results[index]
+          if (result.status === 'fulfilled') return result.value
+          failedIds.push(item.id)
+          return previous.get(item.id) ?? item
+        }),
+      )
+      if (failedIds.length > 0) {
+        const succeeded = ids.length - failedIds.length
+        showBanner(
+          succeeded > 0
+            ? `Updated ${succeeded}, ${failedIds.length} failed.`
+            : `Couldn't update ${failedIds.length === 1 ? 'that item' : 'those items'}.`,
+        )
+      }
+    },
+    [items, callWithAuthRetry, showBanner],
+  )
+
   return {
     items,
     isLoading,
@@ -147,6 +221,8 @@ export function useContextItems() {
     createItem,
     updateItem,
     deleteItem,
+    bulkDelete,
+    bulkSetAlwaysInclude,
     refetch,
   }
 }

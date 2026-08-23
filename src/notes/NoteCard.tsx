@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { formatDuration, formatRelativeTime } from './format'
 import Button from '../components/Button'
 import type { ClientNote } from './types'
@@ -8,6 +8,12 @@ function PlayIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M7 5.5v13l11-6.5-11-6.5z" />
     </svg>
+  )
+}
+
+function SpinnerIcon() {
+  return (
+    <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
   )
 }
 
@@ -64,17 +70,39 @@ interface NoteCardProps {
   onDelete: (id: string) => void
   onRetryUpload: (id: string) => void
   onDiscardUpload: (id: string) => void
+  onRequestAudio: (id: string) => Promise<string>
 }
 
-export default function NoteCard({ note, onEdit, onDelete, onRetryUpload, onDiscardUpload }: NoteCardProps) {
+export default function NoteCard({
+  note,
+  onEdit,
+  onDelete,
+  onRetryUpload,
+  onDiscardUpload,
+  onRequestAudio,
+}: NoteCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState(note.finalTranscript ?? '')
   const [isPlaying, setIsPlaying] = useState(false)
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false)
+  const [audioError, setAudioError] = useState('')
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const pendingAutoPlay = useRef(false)
 
   const duration = formatDuration(note.durationMs)
   const transcript = note.finalTranscript ?? note.roughTranscript
   const hasRealId = note.status === 'ready' || note.status === 'processing'
+  const canPlay = hasRealId || Boolean(note.localAudioUrl)
+
+  // Audio fetched from the server lands on `note.localAudioUrl` after
+  // onRequestAudio resolves and the parent re-renders — once that happens,
+  // actually start playback rather than just leaving it preloaded.
+  useEffect(() => {
+    if (pendingAutoPlay.current && note.localAudioUrl && audioRef.current) {
+      pendingAutoPlay.current = false
+      audioRef.current.play()
+    }
+  }, [note.localAudioUrl])
 
   const startEdit = () => {
     setDraft(note.finalTranscript ?? '')
@@ -86,11 +114,26 @@ export default function NoteCard({ note, onEdit, onDelete, onRetryUpload, onDisc
     if (draft !== note.finalTranscript) onEdit(note.id, draft)
   }
 
-  const togglePlay = () => {
-    const audio = audioRef.current
-    if (!audio) return
-    if (isPlaying) audio.pause()
-    else audio.play()
+  const togglePlay = async () => {
+    if (note.localAudioUrl) {
+      const audio = audioRef.current
+      if (!audio) return
+      if (isPlaying) audio.pause()
+      else audio.play()
+      return
+    }
+
+    setAudioError('')
+    setIsLoadingAudio(true)
+    pendingAutoPlay.current = true
+    try {
+      await onRequestAudio(note.id)
+    } catch {
+      pendingAutoPlay.current = false
+      setAudioError("Couldn't load audio.")
+    } finally {
+      setIsLoadingAudio(false)
+    }
   }
 
   const handleDelete = () => {
@@ -123,24 +166,16 @@ export default function NoteCard({ note, onEdit, onDelete, onRetryUpload, onDisc
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {note.localAudioUrl ? (
+          {canPlay && (
             <button
               type="button"
               onClick={togglePlay}
+              disabled={isLoadingAudio}
               aria-label={isPlaying ? 'Pause' : 'Play recording'}
               className={playButtonClass}
             >
-              {isPlaying ? <PauseIcon /> : <PlayIcon />}
+              {isLoadingAudio ? <SpinnerIcon /> : isPlaying ? <PauseIcon /> : <PlayIcon />}
             </button>
-          ) : (
-            hasRealId && (
-              <span
-                className="flex h-10 w-10 cursor-default items-center justify-center rounded-full bg-paper/60 text-ink-soft/50"
-                title="Playback isn't available yet for notes from a previous session"
-              >
-                <PlayIcon />
-              </span>
-            )
           )}
           {hasRealId && (
             <button type="button" onClick={startEdit} aria-label="Edit transcript" className={iconButtonClass}>
@@ -154,6 +189,8 @@ export default function NoteCard({ note, onEdit, onDelete, onRetryUpload, onDisc
           )}
         </div>
       </div>
+
+      {audioError && <p className="mt-1 text-right text-xs text-red-500">{audioError}</p>}
 
       {note.localAudioUrl && (
         <audio
