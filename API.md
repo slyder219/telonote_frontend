@@ -134,6 +134,25 @@ Response `200`: array of note summaries (no `updated_at`/model/timing fields - u
 [{ "id": "uuid", "created_at": "...", "duration_ms": null, "rough_transcript": "...", "final_transcript": "..." }]
 ```
 
+### `GET /notes/search` — search notes by meaning
+Query params: `q` (required, the search text), `limit` (default 10, max 50).
+
+**Semantic, not keyword search** - `q` gets embedded (`text-embedding-3-small`) and compared against each note's stored `final_transcript` embedding via cosine distance, so a query like "pet health appointment" correctly ranks a note about "call the vet about the dog's checkup" above a literal-keyword-overlap note about a dentist appointment. Confirmed live with exactly that kind of no-keyword-overlap query.
+
+Only searches notes that have an embedding (i.e. have a real `final_transcript` - `POST /notes`/`.../retranscribe` completed, not just audio-only notes) and aren't soft-deleted.
+
+Response `200`, ranked closest-first, each result including a `distance` field (pgvector cosine distance - **lower is more relevant**, not a 0-100 score):
+```json
+[{
+  "id": "uuid", "created_at": "...", "duration_ms": null,
+  "rough_transcript": "...", "final_transcript": "Call the vet about the dog's checkup, he's due for his annual shots.",
+  "distance": 0.50
+}]
+```
+There's no relevance-score cutoff - it always returns up to `limit` results ranked by distance, even if the best match is a poor one. If you want a "no good matches" UI state, pick your own distance threshold client-side (for reference, exact/near-duplicate meaning is close to `0`, a clearly relevant match was `~0.5-0.6` in testing, unrelated notes were `~0.8-0.95`- but treat these as rough anchors, not guarantees).
+
+`422` if `q` is missing/empty.
+
 ### `GET /notes/{note_id}` — full detail
 Response `200`: same full shape as `POST /notes`'s response. `404` if not found/not yours/already deleted.
 
@@ -187,11 +206,11 @@ Response `200`, array, each with its aliases inlined:
 `source_type` is `"manual"` (user-added) or `"extracted"` (came from a committed/merged candidate). Use this list as the picker when the user chooses a merge target (see candidate merge below).
 
 ### `POST /context/items` — manually add one
-Request: `{ "term": "...", "description": "...", "category": "...", "always_include": false }` (only `term` required).
-Response `201`: the created item (empty `aliases`). `always_include` items are always fed into transcription context regardless of relevance to a given note - use sparingly.
+Request: `{ "term": "...", "description": "...", "category": "...", "always_include": false, "aliases": ["..."] }` (only `term` required; `aliases` optional, defaults to none).
+Response `201`: the created item. `always_include` items are always fed into transcription context regardless of relevance to a given note - use sparingly.
 
 ### `PATCH /context/items/{item_id}`
-Request: any subset of `{ term, description, category, always_include, is_active }`. Set `is_active: false` to deactivate without deleting.
+Request: any subset of `{ term, description, category, always_include, is_active, aliases }`. Set `is_active: false` to deactivate without deleting. `aliases`, if present, **replaces** the whole list (send the full desired list, not a delta) - same pattern as candidate editing below. Omit `aliases` entirely to leave them untouched.
 Response `200`: updated item.
 
 ### `DELETE /context/items/{item_id}`

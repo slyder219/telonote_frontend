@@ -7,7 +7,7 @@ export interface ClientNote {
   roughTranscript: string | null
   finalTranscript: string | null
   status: NoteStatus
-  /** Only present for notes recorded in this browser session — the backend has no audio-playback endpoint yet. */
+  /** A local object URL for this note's audio — set once recorded/uploaded this session, or lazily after fetchAudioUrl. */
   localAudioUrl?: string
   uploadError?: string
   pendingUpload?: { blob: Blob; mimeType: string }

@@ -33,6 +33,7 @@ export interface CreateContextItemInput {
   description?: string
   category?: string
   always_include?: boolean
+  aliases?: string[]
 }
 
 export interface UpdateContextItemInput {
@@ -41,6 +42,8 @@ export interface UpdateContextItemInput {
   category?: string
   always_include?: boolean
   is_active?: boolean
+  /** Full replacement, not a delta — send the whole desired list. Omit entirely to leave aliases untouched. */
+  aliases?: string[]
 }
 
 export interface UpdateCandidateInput {

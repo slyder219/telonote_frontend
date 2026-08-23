@@ -17,7 +17,7 @@ function detailIsUnprocessed(note: NoteDetail) {
   return note.rough_transcript === null && note.final_transcript === null
 }
 
-function toClientNote(summary: NoteSummary): ClientNote {
+export function toClientNote(summary: NoteSummary): ClientNote {
   return {
     id: summary.id,
     createdAt: summary.created_at,
@@ -494,6 +494,16 @@ export function useNotes() {
     [callWithAuthRetry],
   )
 
+  // Semantic ("by meaning") search — a separate one-shot query, not tied to
+  // the main paginated/optimistic notes list.
+  const searchByMeaning = useCallback(
+    async (query: string, limit = 10) => {
+      const results = await callWithAuthRetry((token) => notesApi.searchNotesByMeaning(query, token, limit))
+      return results.map(toClientNote)
+    },
+    [callWithAuthRetry],
+  )
+
   return {
     notes,
     isLoadingInitial,
@@ -511,6 +521,7 @@ export function useNotes() {
     bulkDeleteNotes,
     retranscribeNote,
     fetchAudioUrl,
+    searchByMeaning,
     quota,
   }
 }

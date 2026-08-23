@@ -69,10 +69,19 @@ export default function ContextPage() {
   const [query, setQuery] = useState('')
 
   const filteredItems = useMemo(() => {
-    if (!query.trim()) return itemsState.items
-    return itemsState.items.filter((item) =>
-      fuzzyMatchesAny(query, [item.term, item.description, item.category, ...item.aliases]),
-    )
+    const base = !query.trim()
+      ? itemsState.items
+      : itemsState.items.filter((item) =>
+          fuzzyMatchesAny(query, [item.term, item.description, item.category, ...item.aliases]),
+        )
+    // Always-include items surface first regardless of recency, since they're
+    // the ones actively shaping every transcription; everything else is most
+    // recent first.
+    const byRecency = (a: { created_at: string }, b: { created_at: string }) =>
+      b.created_at.localeCompare(a.created_at)
+    const alwaysIncluded = base.filter((item) => item.always_include).sort(byRecency)
+    const rest = base.filter((item) => !item.always_include).sort(byRecency)
+    return [...alwaysIncluded, ...rest]
   }, [itemsState.items, query])
 
   const filteredCandidates = useMemo(() => {

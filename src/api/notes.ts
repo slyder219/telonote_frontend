@@ -87,3 +87,16 @@ export interface UsageInfo {
 export function getUsage(accessToken: string) {
   return apiFetch<UsageInfo>('/notes/usage', { accessToken, withCredentials: false })
 }
+
+export interface NoteSearchResult extends NoteSummary {
+  distance: number
+}
+
+/** Semantic search over the caller's notes by meaning (pgvector cosine distance), ranked closest-first. */
+export function searchNotesByMeaning(query: string, accessToken: string, limit = 10) {
+  const params = new URLSearchParams({ q: query, limit: String(limit) })
+  return apiFetch<NoteSearchResult[]>(`/notes/search?${params.toString()}`, {
+    accessToken,
+    withCredentials: false,
+  })
+}

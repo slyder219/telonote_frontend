@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { formatDuration, formatRelativeTime } from './format'
+import { formatDuration, formatTimeOfDay } from './format'
 import Button from '../components/Button'
 import SwipeableRow from '../components/SwipeableRow'
 import AudioScrubber from './AudioScrubber'
@@ -94,6 +94,30 @@ function RefreshIcon() {
   )
 }
 
+function DownloadIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 4v12m0 0-4-4m4 4 4-4M5 20h14"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function extensionForBlobType(type: string): string {
+  if (type.includes('mp4')) return 'm4a'
+  if (type.includes('webm')) return 'webm'
+  if (type.includes('ogg')) return 'ogg'
+  if (type.includes('mpeg')) return 'mp3'
+  if (type.includes('3gpp')) return '3gp'
+  if (type.includes('amr')) return 'amr'
+  return 'audio'
+}
+
 // Buttons rely on real color/background contrast at rest, not just a
 // :hover state — hover never fires on a touchscreen, so an icon that's
 // only visible on hover is effectively invisible on iOS.
@@ -106,15 +130,17 @@ const dangerButtonClass =
 
 interface NoteCardProps {
   note: ClientNote
-  onEdit: (id: string, text: string) => void
-  onDelete: (id: string) => void
-  onRetryUpload: (id: string) => void
-  onDiscardUpload: (id: string) => void
+  onEdit?: (id: string, text: string) => void
+  onDelete?: (id: string) => void
+  onRetryUpload?: (id: string) => void
+  onDiscardUpload?: (id: string) => void
   onRequestAudio: (id: string) => Promise<string>
-  onRetranscribe: (id: string) => void
-  selected: boolean
-  onToggleSelect: (id: string) => void
+  onRetranscribe?: (id: string) => void
+  selected?: boolean
+  onToggleSelect?: (id: string) => void
   searchQuery: string
+  /** Search-result cards: play/copy/download only — no edit/delete/retranscribe/select, since these may not be part of the loaded notes list the optimistic updates rely on. */
+  readOnly?: boolean
 }
 
 export default function NoteCard({
@@ -125,16 +151,21 @@ export default function NoteCard({
   onDiscardUpload,
   onRequestAudio,
   onRetranscribe,
-  selected,
+  selected = false,
   onToggleSelect,
   searchQuery,
+  readOnly = false,
 }: NoteCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState(note.finalTranscript ?? '')
   const [isPlaying, setIsPlaying] = useState(false)
   const [isLoadingAudio, setIsLoadingAudio] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
   const [inlineError, setInlineError] = useState('')
   const [justCopied, setJustCopied] = useState(false)
+  const [justUpdated, setJustUpdated] = useState(false)
+  const [isRetranscribingFlag, setIsRetranscribingFlag] = useState(false)
+  const [prevStatus, setPrevStatus] = useState(note.status)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const pendingAutoPlay = useRef(false)
 
@@ -142,6 +173,23 @@ export default function NoteCard({
   const transcript = note.finalTranscript ?? note.roughTranscript
   const hasRealId = note.status === 'ready' || note.status === 'processing'
   const canPlay = hasRealId || Boolean(note.localAudioUrl)
+  // Retranscribing an already-transcribed note reuses the 'processing'
+  // status too, but here there's old text still on screen — treat that
+  // case as "updating this text" rather than the empty "no transcript yet".
+  const isRetranscribingNow = note.status === 'processing' && transcript !== null && isRetranscribingFlag
+
+  // A retranscribe we triggered just landed (status left 'processing') —
+  // flash the transcript so the replacement is visibly obvious rather than
+  // a silent text swap. Comparing against the note's own status as it
+  // changes, adjusted during render, per React's "adjusting state when a
+  // prop changes" pattern — avoids an extra render pass through an effect.
+  if (note.status !== prevStatus) {
+    setPrevStatus(note.status)
+    if (isRetranscribingFlag && prevStatus === 'processing' && note.status !== 'processing') {
+      setIsRetranscribingFlag(false)
+      setJustUpdated(true)
+    }
+  }
 
   // Audio fetched from the server lands on `note.localAudioUrl` after
   // onRequestAudio resolves and the parent re-renders — once that happens,
@@ -153,6 +201,13 @@ export default function NoteCard({
     }
   }, [note.localAudioUrl])
 
+  // Timer-only effect: auto-clear the flash a bit after it's triggered above.
+  useEffect(() => {
+    if (!justUpdated) return
+    const timer = setTimeout(() => setJustUpdated(false), 1500)
+    return () => clearTimeout(timer)
+  }, [justUpdated])
+
   const startEdit = () => {
     setDraft(note.finalTranscript ?? '')
     setIsEditing(true)
@@ -160,7 +215,7 @@ export default function NoteCard({
 
   const saveEdit = () => {
     setIsEditing(false)
-    if (draft !== note.finalTranscript) onEdit(note.id, draft)
+    if (draft !== note.finalTranscript) onEdit?.(note.id, draft)
   }
 
   const togglePlay = async () => {
@@ -186,7 +241,7 @@ export default function NoteCard({
   }
 
   const handleDelete = () => {
-    if (window.confirm("Delete this note? This can't be undone.")) onDelete(note.id)
+    if (window.confirm("Delete this note? This can't be undone.")) onDelete?.(note.id)
   }
 
   const handleCopy = async () => {
@@ -201,19 +256,52 @@ export default function NoteCard({
     }
   }
 
+  const handleRetranscribe = () => {
+    setIsRetranscribingFlag(true)
+    onRetranscribe?.(note.id)
+  }
+
+  const handleDownload = async () => {
+    setInlineError('')
+    setIsDownloading(true)
+    try {
+      const url = note.localAudioUrl ?? (await onRequestAudio(note.id))
+      // Peeking at the blob's real type (a local, instant read for a blob:
+      // URL) gives a sensible file extension instead of a generic one.
+      const blob = await fetch(url).then((r) => r.blob())
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `telonote-${note.createdAt.slice(0, 10)}.${extensionForBlobType(blob.type)}`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+    } catch {
+      setInlineError("Couldn't download audio.")
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
   return (
-    <SwipeableRow onDelete={hasRealId ? handleDelete : undefined} onEdit={hasRealId ? startEdit : undefined}>
+    <SwipeableRow
+      onDelete={!readOnly && hasRealId ? handleDelete : undefined}
+      onEdit={!readOnly && hasRealId ? startEdit : undefined}
+    >
       <div className="p-4">
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-soft">
-            <input
-              type="checkbox"
-              checked={selected}
-              onChange={() => onToggleSelect(note.id)}
-              aria-label="Select note"
-              className="mr-1 h-4 w-4 shrink-0 accent-brand-500"
-            />
-            <span className="shrink-0">{formatRelativeTime(note.createdAt)}</span>
+            {!readOnly && (
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={() => onToggleSelect?.(note.id)}
+                aria-label="Select note"
+                className="mr-1 h-4 w-4 shrink-0 accent-brand-500"
+              />
+            )}
+            <span className="shrink-0" title={new Date(note.createdAt).toLocaleString()}>
+              {formatTimeOfDay(note.createdAt)}
+            </span>
             {duration && (
               <>
                 <span aria-hidden="true">·</span>
@@ -254,19 +342,30 @@ export default function NoteCard({
             {hasRealId && (
               <button
                 type="button"
-                onClick={() => onRetranscribe(note.id)}
+                onClick={handleDownload}
+                disabled={isDownloading}
+                aria-label="Download audio"
+                className={iconButtonClass}
+              >
+                {isDownloading ? <SpinnerIcon /> : <DownloadIcon />}
+              </button>
+            )}
+            {!readOnly && hasRealId && (
+              <button
+                type="button"
+                onClick={handleRetranscribe}
                 aria-label="Re-run transcription"
                 className={iconButtonClass}
               >
                 <RefreshIcon />
               </button>
             )}
-            {hasRealId && (
+            {!readOnly && hasRealId && (
               <button type="button" onClick={startEdit} aria-label="Edit transcript" className={iconButtonClass}>
                 <PencilIcon />
               </button>
             )}
-            {hasRealId && (
+            {!readOnly && hasRealId && (
               <button type="button" onClick={handleDelete} aria-label="Delete note" className={dangerButtonClass}>
                 <TrashIcon />
               </button>
@@ -299,7 +398,7 @@ export default function NoteCard({
                   type="button"
                   variant="primary"
                   className="!px-4 !py-2 !text-sm"
-                  onClick={() => onRetryUpload(note.id)}
+                  onClick={() => onRetryUpload?.(note.id)}
                 >
                   Retry
                 </Button>
@@ -307,7 +406,7 @@ export default function NoteCard({
                   type="button"
                   variant="secondary"
                   className="!px-4 !py-2 !text-sm"
-                  onClick={() => onDiscardUpload(note.id)}
+                  onClick={() => onDiscardUpload?.(note.id)}
                 >
                   Discard
                 </Button>
@@ -336,9 +435,21 @@ export default function NoteCard({
               </div>
             </div>
           ) : transcript ? (
-            <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-ink">
-              <Highlight text={transcript} query={searchQuery} />
-            </p>
+            <div>
+              {isRetranscribingNow && (
+                <p className="mb-1.5 inline-flex items-center gap-1.5 text-xs text-brand-600">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-400 border-t-transparent" />
+                  Re-transcribing…
+                </p>
+              )}
+              <p
+                className={`whitespace-pre-wrap rounded-lg text-[15px] leading-relaxed text-ink transition-colors duration-700 ${
+                  isRetranscribingNow ? 'opacity-50' : ''
+                } ${justUpdated ? 'bg-brand-50' : 'bg-transparent'}`}
+              >
+                <Highlight text={transcript} query={searchQuery} />
+              </p>
+            </div>
           ) : note.status === 'uploading' || note.status === 'processing' ? (
             <p className="text-sm italic text-ink-soft">Transcribing your note…</p>
           ) : (
