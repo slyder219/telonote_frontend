@@ -92,7 +92,7 @@ Any of the transcript/model/timing fields can come back `null` if that step fail
 
 The audio itself is stored (as bytes, directly in the database - no object storage yet). It is **not** returned in any response body; there's no `GET` for the raw audio yet either.
 
-Setting a real `final_transcript` here also kicks off **context candidate extraction** in the background (same as `PATCH`, see the Context section) - no separate call needed.
+Setting a real `final_transcript` here also kicks off **context candidate extraction** in the background (same as `.../retranscribe`, see the Context section) - no separate call needed.
 
 Errors: `400` if the uploaded file is empty, or if it's not a recognized compressed audio format.
 
@@ -116,6 +116,13 @@ const blob = await res.blob();
 audioEl.src = URL.createObjectURL(blob); // revoke with URL.revokeObjectURL when done with it
 ```
 
+### `POST /notes/{note_id}/retranscribe` — re-run transcription on the stored audio
+No body. Re-runs the full pipeline (rough → context → final) against this note's already-stored audio and overwrites its transcript/model/timing fields - useful as a "try again" action, or after the user has approved new context items that might now help. Synchronous, same latency profile as `POST /notes`.
+
+Response `200`: full updated note object, same shape as `POST /notes`. `404` if the note doesn't exist/isn't yours/is deleted, or has no audio stored.
+
+Also re-triggers context candidate extraction in the background if a real `final_transcript` resulted, same as `POST /notes`.
+
 ### `PATCH /notes/{note_id}` — edit the transcript
 Request:
 ```json
@@ -123,7 +130,7 @@ Request:
 ```
 Response `200`: full note object with the edit applied and `updated_at` bumped. Only `final_transcript` is editable right now. `404` if not found/not yours.
 
-Setting `final_transcript` here also kicks off **context candidate extraction** in the background (not part of this request's latency) - see the Context section below. Same as `POST /notes` - either path that produces a final transcript triggers it.
+**Does not trigger candidate extraction** - unlike `POST /notes` and `.../retranscribe`, this is a human-authored correction, not a fresh AI transcription of the audio, so it's treated as out of scope for extraction. If a correction surfaces a term worth capturing, add/edit it directly via the context-items or context-candidates endpoints instead.
 
 ### `DELETE /notes/{note_id}`
 Soft delete. `204` on success, `404` if not found/not yours/already deleted.
@@ -195,9 +202,10 @@ Response `200`, one result per id, so partial failures are visible instead of th
 ```
 
 ### How candidates get created
-Not a frontend-triggered action - happens automatically in the background whenever a note's `final_transcript` is set (both `POST /notes` and `PATCH /notes/{id}`). A lightweight LLM (`gpt-5.4-mini`) extracts only genuinely-useful terms (people, companies, acronyms, jargon, unusual places - never ordinary vocabulary), each is checked against existing items/aliases/pending candidates (exact match) and existing item embeddings (semantic near-duplicate) to avoid obvious dupes, and survivors are inserted as `pending` candidates. A note can produce zero candidates - that's expected and common for a mundane note.
+Not a frontend-triggered action - happens automatically in the background whenever a note gets a *fresh AI-generated* `final_transcript` (`POST /notes` and `.../retranscribe`, but deliberately not `PATCH`, which is a human edit). A lightweight LLM (`gpt-5.4-mini`) extracts only terms a generic transcription model would plausibly mis-hear on its own - not just "notable" terms; ordinary vocabulary, common places/names, and everyday words are excluded even if they're technically proper nouns. Zero candidates is a common and expected outcome for an ordinary note.
+
+Each candidate is checked against existing items/aliases/pending candidates (exact match, no embedding cost) first, and only falls through to an embedding-based near-duplicate check against existing item embeddings if it survives that - avoiding wasted embedding calls on obvious repeats.
 
 ## Not built yet (planned)
 
 - User settings (`/settings`)
-- A way to fetch/play back the stored audio (currently write-only from the API's perspective)

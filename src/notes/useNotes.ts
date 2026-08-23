@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuthenticatedRequest } from '../auth/useAuthenticatedRequest'
 import * as notesApi from '../api/notes'
-import type { NoteDetail } from '../api/notes'
+import type { NoteDetail, NoteSummary } from '../api/notes'
 import { ApiError, NetworkError } from '../api/client'
 import { filenameForMimeType } from './format'
 import type { ClientNote } from './types'
@@ -9,18 +9,33 @@ import type { ClientNote } from './types'
 const POLL_INTERVAL_MS = 4000
 const MAX_POLL_ATTEMPTS = 15
 const BANNER_TIMEOUT_MS = 5000
+const PAGE_SIZE = 100
 
 function detailIsUnprocessed(note: NoteDetail) {
   return note.rough_transcript === null && note.final_transcript === null
+}
+
+function toClientNote(summary: NoteSummary): ClientNote {
+  return {
+    id: summary.id,
+    createdAt: summary.created_at,
+    durationMs: summary.duration_ms,
+    roughTranscript: summary.rough_transcript,
+    finalTranscript: summary.final_transcript,
+    status: 'ready',
+  }
 }
 
 export function useNotes() {
   const callWithAuthRetry = useAuthenticatedRequest()
   const [notes, setNotes] = useState<ClientNote[]>([])
   const [isLoadingInitial, setIsLoadingInitial] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [bannerMessage, setBannerMessage] = useState<string | null>(null)
 
+  const nextOffsetRef = useRef(0)
   const localAudioUrls = useRef(new Map<string, string>())
   const bannerTimer = useRef<number | null>(null)
   const pollTimers = useRef(new Map<string, number>())
@@ -93,19 +108,12 @@ export function useNotes() {
   useEffect(() => {
     let cancelled = false
     callWithAuthRetryRef
-      .current((token) => notesApi.listNotes(token, { limit: 100 }))
+      .current((token) => notesApi.listNotes(token, { limit: PAGE_SIZE, offset: 0 }))
       .then((summaries) => {
         if (cancelled) return
-        setNotes(
-          summaries.map((summary) => ({
-            id: summary.id,
-            createdAt: summary.created_at,
-            durationMs: summary.duration_ms,
-            roughTranscript: summary.rough_transcript,
-            finalTranscript: summary.final_transcript,
-            status: 'ready',
-          })),
-        )
+        setNotes(summaries.map(toClientNote))
+        nextOffsetRef.current = summaries.length
+        setHasMore(summaries.length === PAGE_SIZE)
       })
       .catch((error) => {
         if (cancelled) return
@@ -122,6 +130,27 @@ export function useNotes() {
       cancelled = true
     }
   }, [])
+
+  const loadMore = useCallback(async () => {
+    if (isLoadingMore || !hasMore) return
+    setIsLoadingMore(true)
+    try {
+      const summaries = await callWithAuthRetry((token) =>
+        notesApi.listNotes(token, { limit: PAGE_SIZE, offset: nextOffsetRef.current }),
+      )
+      setNotes((current) => [...current, ...summaries.map(toClientNote)])
+      nextOffsetRef.current += summaries.length
+      setHasMore(summaries.length === PAGE_SIZE)
+    } catch (error) {
+      showBanner(
+        error instanceof ApiError || error instanceof NetworkError
+          ? error.message
+          : 'Could not load more notes.',
+      )
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [isLoadingMore, hasMore, callWithAuthRetry, showBanner])
 
   useEffect(() => {
     const urls = localAudioUrls.current
@@ -311,6 +340,93 @@ export function useNotes() {
     [callWithAuthRetry, showBanner],
   )
 
+  const bulkDeleteNotes = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return
+      ids.forEach(clearPoll)
+      const idSet = new Set(ids)
+      let removed: { index: number; note: ClientNote }[] = []
+      setNotes((current) => {
+        removed = current.map((note, index) => ({ index, note })).filter(({ note }) => idSet.has(note.id))
+        return current.filter((note) => !idSet.has(note.id))
+      })
+
+      const results = await Promise.allSettled(
+        ids.map((id) => callWithAuthRetry((token) => notesApi.deleteNote(id, token))),
+      )
+      const failedIds = new Set(ids.filter((_, i) => results[i].status === 'rejected'))
+      ids
+        .filter((id) => !failedIds.has(id))
+        .forEach((id) => {
+          const url = localAudioUrls.current.get(id)
+          if (url) {
+            URL.revokeObjectURL(url)
+            localAudioUrls.current.delete(id)
+          }
+        })
+      if (failedIds.size > 0) {
+        setNotes((current) => {
+          const next = [...current]
+          removed
+            .filter(({ note }) => failedIds.has(note.id))
+            .forEach(({ index, note }) => next.splice(Math.min(index, next.length), 0, note))
+          return next
+        })
+        const succeeded = ids.length - failedIds.size
+        showBanner(
+          succeeded > 0
+            ? `Deleted ${succeeded}, ${failedIds.size} failed.`
+            : `Couldn't delete ${failedIds.size === 1 ? 'that note' : 'those notes'}.`,
+        )
+      }
+    },
+    [callWithAuthRetry, showBanner],
+  )
+
+  const retranscribeNote = useCallback(
+    async (id: string) => {
+      let previousStatus: ClientNote['status'] | undefined
+      setNotes((current) =>
+        current.map((note) => {
+          if (note.id !== id) return note
+          previousStatus = note.status
+          return { ...note, status: 'processing' }
+        }),
+      )
+
+      try {
+        const updated = await callWithAuthRetry((token) => notesApi.retranscribeNote(id, token))
+        const unprocessed = detailIsUnprocessed(updated)
+        setNotes((current) =>
+          current.map((note) =>
+            note.id === id
+              ? {
+                  ...note,
+                  durationMs: updated.duration_ms ?? note.durationMs,
+                  roughTranscript: updated.rough_transcript,
+                  finalTranscript: updated.final_transcript,
+                  status: unprocessed ? 'processing' : 'ready',
+                }
+              : note,
+          ),
+        )
+        if (unprocessed) schedulePoll(id, 0)
+      } catch (error) {
+        setNotes((current) =>
+          current.map((note) =>
+            note.id === id ? { ...note, status: previousStatus ?? 'ready' } : note,
+          ),
+        )
+        showBanner(
+          error instanceof ApiError || error instanceof NetworkError
+            ? error.message
+            : "Couldn't re-run transcription.",
+        )
+      }
+    },
+    [callWithAuthRetry, schedulePoll, showBanner],
+  )
+
   // Lazily fetches and caches the audio for a note that wasn't recorded in
   // this session (no blob already in memory) — see GET /notes/{id}/audio.
   // Bearer-token auth means a plain <audio src> can't be used; the fetched
@@ -332,6 +448,9 @@ export function useNotes() {
   return {
     notes,
     isLoadingInitial,
+    isLoadingMore,
+    hasMore,
+    loadMore,
     loadError,
     bannerMessage,
     dismissBanner,
@@ -340,6 +459,8 @@ export function useNotes() {
     discardUpload,
     editTranscript,
     deleteNoteById,
+    bulkDeleteNotes,
+    retranscribeNote,
     fetchAudioUrl,
   }
 }

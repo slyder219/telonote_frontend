@@ -1,7 +1,12 @@
-import { Link } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import Logo from './Logo'
 import Button from './Button'
+
+const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+  `rounded-full px-2.5 py-2 text-sm font-medium transition-colors ${
+    isActive ? 'bg-brand-50 text-brand-600' : 'text-ink-soft hover:text-ink'
+  }`
 
 export default function Navbar() {
   const { isAuthenticated, isLoading, logout } = useAuth()
@@ -15,16 +20,12 @@ export default function Navbar() {
 
         {isLoading ? null : isAuthenticated ? (
           <div className="flex items-center gap-1">
-            <Link to="/dashboard">
-              <Button variant="ghost" className="!px-2.5 !py-2 !text-sm">
-                Dashboard
-              </Button>
-            </Link>
-            <Link to="/context">
-              <Button variant="ghost" className="!px-2.5 !py-2 !text-sm">
-                My Context
-              </Button>
-            </Link>
+            <NavLink to="/dashboard" className={navLinkClass}>
+              Dashboard
+            </NavLink>
+            <NavLink to="/context" className={navLinkClass}>
+              My Context
+            </NavLink>
             <Button variant="secondary" className="!px-3.5 !py-2 !text-sm" onClick={logout}>
               Log out
             </Button>

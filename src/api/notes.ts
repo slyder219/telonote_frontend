@@ -65,3 +65,14 @@ export function deleteNote(id: string, accessToken: string) {
 export function getNoteAudio(id: string, accessToken: string) {
   return apiFetchBlob(`/notes/${id}/audio`, { accessToken, withCredentials: false })
 }
+
+// Re-runs the full pipeline against the note's stored audio and overwrites
+// its transcript/model/timing fields. Synchronous — same latency profile as
+// POST /notes.
+export function retranscribeNote(id: string, accessToken: string) {
+  return apiFetch<NoteDetail>(`/notes/${id}/retranscribe`, {
+    method: 'POST',
+    accessToken,
+    withCredentials: false,
+  })
+}

@@ -9,8 +9,14 @@ import CandidateCard from '../context/CandidateCard'
 import Banner from '../components/Banner'
 import BulkActionBar from '../components/BulkActionBar'
 import Button from '../components/Button'
+import LoadMoreButton from '../components/LoadMoreButton'
 
 type Tab = 'committed' | 'candidates'
+
+// Neither /context/items nor /context/candidates supports limit/offset —
+// everything is fetched in one shot. This just caps how much gets rendered
+// at once, revealing more of what's already in memory on demand.
+const PAGE_SIZE = 100
 
 function SkeletonCard() {
   return (
@@ -56,6 +62,8 @@ export default function ContextPage() {
   const candidatesState = useContextCandidates()
   const itemSelection = useSelection()
   const candidateSelection = useSelection()
+  const [visibleItems, setVisibleItems] = useState(PAGE_SIZE)
+  const [visibleCandidates, setVisibleCandidates] = useState(PAGE_SIZE)
 
   // Committing or merging a candidate creates/mutates a context item
   // server-side, but the resolved-candidate response doesn't include that
@@ -195,16 +203,21 @@ export default function ContextPage() {
                 No committed context yet.
               </div>
             ) : (
-              itemsState.items.map((item) => (
-                <ContextItemCard
-                  key={item.id}
-                  item={item}
-                  onUpdate={itemsState.updateItem}
-                  onDelete={itemsState.deleteItem}
-                  selected={itemSelection.isSelected(item.id)}
-                  onToggleSelect={itemSelection.toggle}
-                />
-              ))
+              <>
+                {itemsState.items.slice(0, visibleItems).map((item) => (
+                  <ContextItemCard
+                    key={item.id}
+                    item={item}
+                    onUpdate={itemsState.updateItem}
+                    onDelete={itemsState.deleteItem}
+                    selected={itemSelection.isSelected(item.id)}
+                    onToggleSelect={itemSelection.toggle}
+                  />
+                ))}
+                {itemsState.items.length > visibleItems && (
+                  <LoadMoreButton onClick={() => setVisibleItems((n) => n + PAGE_SIZE)} isLoading={false} />
+                )}
+              </>
             )}
           </>
         ) : (
@@ -246,19 +259,24 @@ export default function ContextPage() {
                 No pending candidates. New ones show up here after a note is transcribed.
               </div>
             ) : (
-              candidatesState.candidates.map((candidate) => (
-                <CandidateCard
-                  key={candidate.id}
-                  candidate={candidate}
-                  existingItems={itemsState.items}
-                  onEdit={candidatesState.editCandidate}
-                  onCommit={handleCommit}
-                  onMerge={handleMerge}
-                  onIgnore={candidatesState.ignore}
-                  selected={candidateSelection.isSelected(candidate.id)}
-                  onToggleSelect={candidateSelection.toggle}
-                />
-              ))
+              <>
+                {candidatesState.candidates.slice(0, visibleCandidates).map((candidate) => (
+                  <CandidateCard
+                    key={candidate.id}
+                    candidate={candidate}
+                    existingItems={itemsState.items}
+                    onEdit={candidatesState.editCandidate}
+                    onCommit={handleCommit}
+                    onMerge={handleMerge}
+                    onIgnore={candidatesState.ignore}
+                    selected={candidateSelection.isSelected(candidate.id)}
+                    onToggleSelect={candidateSelection.toggle}
+                  />
+                ))}
+                {candidatesState.candidates.length > visibleCandidates && (
+                  <LoadMoreButton onClick={() => setVisibleCandidates((n) => n + PAGE_SIZE)} isLoading={false} />
+                )}
+              </>
             )}
           </>
         )}
