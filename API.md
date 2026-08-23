@@ -15,7 +15,7 @@ Reference for the frontend. Keep this current as endpoints are added/changed.
 
 ## Authentication
 
-Session state lives in an **httpOnly cookie** the backend sets/reads — the frontend never touches it directly, but must send `credentials: 'include'` on every `/auth/*` request (and on any request that relies on cookie-based session state) since it's cross-origin.
+Session state lives in an **httpOnly cookie** the backend sets/reads — the frontend never touches it directly, but must send `credentials: 'include'` on every `/auth/*` request (and on any request that relies on cookie-based session state). This is a genuine cross-site cookie (telonote.com and the backend are different registrable domains), so the cookie is set with `SameSite=None; Secure; Partitioned` — the last one (CHIPS) matters because modern browsers block third-party cookies by default even with `SameSite=None; Secure` unless they're partitioned. Nothing the frontend needs to configure for this - just always use `credentials: 'include'` on these calls.
 
 Everything else (all `/notes/*` etc.) is authenticated via a **bearer access token** the frontend holds in memory/state and sends as:
 ```
@@ -108,14 +108,82 @@ Request:
 ```
 Response `200`: full note object with the edit applied and `updated_at` bumped. Only `final_transcript` is editable right now. `404` if not found/not yours.
 
+Setting `final_transcript` here also kicks off **context candidate extraction** in the background (not part of this request's latency) - see the Context section below. This is the current stand-in trigger point until the real transcription pipeline is wired into `POST /notes`; extraction will run from there too once that lands, without any frontend change needed.
+
 ### `DELETE /notes/{note_id}`
 Soft delete. `204` on success, `404` if not found/not yours/already deleted.
 
+## Context
+
+Two related concepts:
+- **Context items** (`tn.context_items`) — the user's committed, trusted vocabulary (people, companies, acronyms, jargon, etc.) used later to improve transcription accuracy. Each has zero or more **aliases** (alternate spellings/forms).
+- **Context candidates** — AI-proposed additions awaiting the user's review. Nothing an extraction model produces ever lands in context items automatically; a candidate only becomes a real item via an explicit commit/merge action below. A candidate can also have aliases.
+
+All endpoints require `Authorization: Bearer <access_token>`. Not-found/not-yours both return `404`.
+
+### `GET /context/items` — the user's committed context
+Response `200`, array, each with its aliases inlined:
+```json
+[{
+  "id": "uuid", "term": "Aetherworks Logistics", "description": "...", "category": "companies/organizations",
+  "always_include": false, "is_active": true, "source_type": "extracted",
+  "created_at": "...", "updated_at": "...",
+  "aliases": ["Aether Works Logistics", "Etherworks Logistics"]
+}]
+```
+`source_type` is `"manual"` (user-added) or `"extracted"` (came from a committed/merged candidate). Use this list as the picker when the user chooses a merge target (see candidate merge below).
+
+### `POST /context/items` — manually add one
+Request: `{ "term": "...", "description": "...", "category": "...", "always_include": false }` (only `term` required).
+Response `201`: the created item (empty `aliases`). `always_include` items are always fed into transcription context regardless of relevance to a given note - use sparingly.
+
+### `PATCH /context/items/{item_id}`
+Request: any subset of `{ term, description, category, always_include, is_active }`. Set `is_active: false` to deactivate without deleting.
+Response `200`: updated item.
+
+### `DELETE /context/items/{item_id}`
+Soft delete. `204` on success.
+
+### `GET /context/candidates` — the review queue
+Query param `status` (default `pending`; pass `added` / `merged` / `ignored` / omit-with-empty-string for all). This is what the frontend shows the user to approve/reject, aliases included:
+```json
+[{
+  "id": "uuid", "note_id": "uuid", "proposed_term": "KSMS",
+  "proposed_description": "...", "proposed_category": "acronyms",
+  "status": "pending", "context_item_id": null,
+  "created_at": "...", "resolved_at": null,
+  "aliases": ["K S M S", "KSMS"]
+}]
+```
+
+### `PATCH /context/candidates/{id}` — edit before resolving
+The user can correct the AI's proposal before approving it. Request: any subset of `{ proposed_term, proposed_description, proposed_category, aliases }` - `aliases`, if present, **replaces** the whole list (send the full desired list, not a delta). Only works while `status = "pending"`; `404` otherwise (candidate already resolved is treated as not-found-for-editing).
+Response `200`: updated candidate.
+
+### `POST /context/candidates/{id}/commit`
+Turns the candidate into a brand-new context item (its aliases come along). Sets `status="added"`, `context_item_id` to the new item's id.
+Response `200`: the resolved candidate. `409` if already resolved, or if a context item with that exact term already exists (use merge instead in that case).
+
+### `POST /context/candidates/{id}/merge`
+Request: `{ "context_item_id": "uuid" }` (an existing item from `GET /context/items` - the frontend needs to let the user pick one, e.g. because the AI proposed a near-duplicate under slightly different wording). Adds the candidate's aliases (plus its own proposed term, as an alias) onto that existing item. Sets `status="merged"`.
+Response `200`: the resolved candidate. `404` if the target item doesn't exist/isn't yours, `409` if already resolved.
+
+### `POST /context/candidates/{id}/ignore`
+Discards it, no effect on committed context. Sets `status="ignored"`.
+Response `200`: the resolved candidate. `409` if already resolved.
+
+### `POST /context/candidates/bulk` — approve/reject many at once
+Request: `{ "ids": ["uuid", ...], "action": "commit" | "ignore" }` (bulk merge isn't supported - merge needs a distinct target per candidate, so do those one at a time).
+Response `200`, one result per id, so partial failures are visible instead of the whole batch failing:
+```json
+[{ "id": "uuid", "ok": true, "detail": "committed" }, { "id": "uuid", "ok": false, "detail": "Candidate not found" }]
+```
+
+### How candidates get created
+Not a frontend-triggered action - happens automatically in the background whenever a note's `final_transcript` is set (currently: `PATCH /notes/{id}`; will also happen from `POST /notes` once the real transcription pipeline is wired in). A lightweight LLM (`gpt-5.4-mini`) extracts only genuinely-useful terms (people, companies, acronyms, jargon, unusual places - never ordinary vocabulary), each is checked against existing items/aliases/pending candidates (exact match) and existing item embeddings (semantic near-duplicate) to avoid obvious dupes, and survivors are inserted as `pending` candidates. A note can produce zero candidates - that's expected and common for a mundane note.
+
 ## Not built yet (planned)
 
-- Wiring the transcription/context/embedding pipeline into `POST /notes` (rough transcribe → semantic context lookup → final transcribe)
-- Context items CRUD (`/context-items`) - the personal vocabulary list
-- Context candidates review queue (`/context-candidates`) - approve/reject auto-extracted terms
+- Wiring the transcription/context/embedding pipeline into `POST /notes` (rough transcribe → semantic context lookup → final transcribe) - candidate extraction is ready and will plug into that same point
 - User settings (`/settings`)
-- Automatic context-candidate extraction from a note's final transcript
 - A way to fetch/play back the stored audio (currently write-only from the API's perspective)

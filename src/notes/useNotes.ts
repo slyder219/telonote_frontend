@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useAuth } from '../auth/AuthContext'
+import { useAuthenticatedRequest } from '../auth/useAuthenticatedRequest'
 import * as notesApi from '../api/notes'
 import type { NoteDetail } from '../api/notes'
 import { ApiError, NetworkError } from '../api/client'
@@ -15,7 +15,7 @@ function detailIsUnprocessed(note: NoteDetail) {
 }
 
 export function useNotes() {
-  const auth = useAuth()
+  const callWithAuthRetry = useAuthenticatedRequest()
   const [notes, setNotes] = useState<ClientNote[]>([])
   const [isLoadingInitial, setIsLoadingInitial] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -35,23 +35,6 @@ export function useNotes() {
     setBannerMessage(null)
     if (bannerTimer.current !== null) window.clearTimeout(bannerTimer.current)
   }, [])
-
-  const callWithAuthRetry = useCallback(
-    async <T,>(fn: (accessToken: string) => Promise<T>): Promise<T> => {
-      const token = auth.accessToken
-      if (!token) throw new ApiError(401, 'Not authenticated')
-      try {
-        return await fn(token)
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          const freshToken = await auth.refreshAccessToken()
-          return fn(freshToken)
-        }
-        throw error
-      }
-    },
-    [auth],
-  )
 
   const clearPoll = (id: string) => {
     const timer = pollTimers.current.get(id)

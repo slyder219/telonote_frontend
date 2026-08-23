@@ -2,7 +2,7 @@ import { usePageMeta } from '../hooks/usePageMeta'
 import { useNotes } from '../notes/useNotes'
 import RecordButton from '../notes/RecordButton'
 import NoteCard from '../notes/NoteCard'
-import Banner from '../notes/Banner'
+import Banner from '../components/Banner'
 
 function SkeletonCard() {
   return (

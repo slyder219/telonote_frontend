@@ -8,19 +8,24 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-paper/80 backdrop-blur">
-      <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
+      <nav className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-y-2 px-4 py-3 sm:px-6">
         <Link to="/" className="shrink-0">
           <Logo />
         </Link>
 
         {isLoading ? null : isAuthenticated ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <Link to="/dashboard">
-              <Button variant="ghost" className="!px-3 !py-2">
+              <Button variant="ghost" className="!px-2.5 !py-2 !text-sm">
                 Dashboard
               </Button>
             </Link>
-            <Button variant="secondary" className="!px-4 !py-2" onClick={logout}>
+            <Link to="/context">
+              <Button variant="ghost" className="!px-2.5 !py-2 !text-sm">
+                My Context
+              </Button>
+            </Link>
+            <Button variant="secondary" className="!px-3.5 !py-2 !text-sm" onClick={logout}>
               Log out
             </Button>
           </div>
