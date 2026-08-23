@@ -7,6 +7,9 @@ export default function Footer() {
       <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-6 py-8 text-sm text-ink-soft sm:flex-row sm:justify-between">
         <Logo />
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+          <Link to="/pricing" className="hover:text-ink">
+            Pricing
+          </Link>
           <Link to="/terms" className="hover:text-ink">
             Terms of Service
           </Link>
