@@ -11,6 +11,8 @@ export class ApiError extends Error {
   }
 }
 
+export class NetworkError extends Error {}
+
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
@@ -18,14 +20,33 @@ interface RequestOptions {
   withCredentials?: boolean
 }
 
+function firstString(...values: unknown[]): string | undefined {
+  return values.find((value): value is string => typeof value === 'string' && value.length > 0)
+}
+
 async function extractErrorMessage(response: Response): Promise<string> {
+  let data: unknown
   try {
-    const data = await response.json()
-    if (typeof data.detail === 'string') return data.detail
-    if (Array.isArray(data.detail) && data.detail[0]?.msg) return data.detail[0].msg
+    data = await response.json()
   } catch {
-    // response body wasn't JSON — fall through to the generic message below.
+    return `Request failed with status ${response.status}`
   }
+
+  if (data && typeof data === 'object') {
+    const record = data as Record<string, unknown>
+
+    // FastAPI validation errors: {"detail": [{"msg": "...", "loc": [...]}, ...]}
+    if (Array.isArray(record.detail)) {
+      const messages = record.detail
+        .map((item) => (item && typeof item === 'object' ? (item as Record<string, unknown>).msg : item))
+        .filter((msg): msg is string => typeof msg === 'string')
+      if (messages.length > 0) return messages.join(' ')
+    }
+
+    const message = firstString(record.detail, record.message, record.error, record.error_description)
+    if (message) return message
+  }
+
   return `Request failed with status ${response.status}`
 }
 
@@ -36,12 +57,17 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers,
-    credentials: withCredentials ? 'include' : 'omit',
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers,
+      credentials: withCredentials ? 'include' : 'omit',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+  } catch {
+    throw new NetworkError("Can't reach the server. Check your connection and try again.")
+  }
 
   if (!response.ok) {
     throw new ApiError(response.status, await extractErrorMessage(response))
