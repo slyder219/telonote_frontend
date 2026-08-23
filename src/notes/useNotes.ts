@@ -494,13 +494,12 @@ export function useNotes() {
     [callWithAuthRetry],
   )
 
-  // Semantic ("by meaning") search — a separate one-shot query, not tied to
-  // the main paginated/optimistic notes list.
+  // Semantic ("by meaning") search returns bare {id, distance} pairs, not
+  // full note data — the caller intersects these ids against the already-
+  // loaded `notes` list and reuses that data, rather than this hook fetching
+  // or caching a second, parallel copy of note content.
   const searchByMeaning = useCallback(
-    async (query: string, limit = 10) => {
-      const results = await callWithAuthRetry((token) => notesApi.searchNotesByMeaning(query, token, limit))
-      return results.map(toClientNote)
-    },
+    (query: string, limit = 10) => callWithAuthRetry((token) => notesApi.searchNotesByMeaning(query, token, limit)),
     [callWithAuthRetry],
   )
 

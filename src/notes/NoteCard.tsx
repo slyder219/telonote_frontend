@@ -139,8 +139,6 @@ interface NoteCardProps {
   selected?: boolean
   onToggleSelect?: (id: string) => void
   searchQuery: string
-  /** Search-result cards: play/copy/download only — no edit/delete/retranscribe/select, since these may not be part of the loaded notes list the optimistic updates rely on. */
-  readOnly?: boolean
 }
 
 export default function NoteCard({
@@ -154,7 +152,6 @@ export default function NoteCard({
   selected = false,
   onToggleSelect,
   searchQuery,
-  readOnly = false,
 }: NoteCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState(note.finalTranscript ?? '')
@@ -283,22 +280,17 @@ export default function NoteCard({
   }
 
   return (
-    <SwipeableRow
-      onDelete={!readOnly && hasRealId ? handleDelete : undefined}
-      onEdit={!readOnly && hasRealId ? startEdit : undefined}
-    >
+    <SwipeableRow onDelete={hasRealId ? handleDelete : undefined} onEdit={hasRealId ? startEdit : undefined}>
       <div className="p-4">
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-soft">
-            {!readOnly && (
-              <input
-                type="checkbox"
-                checked={selected}
-                onChange={() => onToggleSelect?.(note.id)}
-                aria-label="Select note"
-                className="mr-1 h-4 w-4 shrink-0 accent-brand-500"
-              />
-            )}
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={() => onToggleSelect?.(note.id)}
+              aria-label="Select note"
+              className="mr-1 h-4 w-4 shrink-0 accent-brand-500"
+            />
             <span className="shrink-0" title={new Date(note.createdAt).toLocaleString()}>
               {formatTimeOfDay(note.createdAt)}
             </span>
@@ -350,7 +342,7 @@ export default function NoteCard({
                 {isDownloading ? <SpinnerIcon /> : <DownloadIcon />}
               </button>
             )}
-            {!readOnly && hasRealId && (
+            {hasRealId && (
               <button
                 type="button"
                 onClick={handleRetranscribe}
@@ -360,12 +352,12 @@ export default function NoteCard({
                 <RefreshIcon />
               </button>
             )}
-            {!readOnly && hasRealId && (
+            {hasRealId && (
               <button type="button" onClick={startEdit} aria-label="Edit transcript" className={iconButtonClass}>
                 <PencilIcon />
               </button>
             )}
-            {!readOnly && hasRealId && (
+            {hasRealId && (
               <button type="button" onClick={handleDelete} aria-label="Delete note" className={dangerButtonClass}>
                 <TrashIcon />
               </button>
