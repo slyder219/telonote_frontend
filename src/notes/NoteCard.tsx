@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
 import { formatDuration, formatRelativeTime } from './format'
+import Button from '../components/Button'
 import type { ClientNote } from './types'
 
 function PlayIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M7 5.5v13l11-6.5-11-6.5z" />
     </svg>
   )
@@ -12,7 +13,7 @@ function PlayIcon() {
 
 function PauseIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <rect x="6" y="5" width="4" height="14" rx="1" />
       <rect x="14" y="5" width="4" height="14" rx="1" />
     </svg>
@@ -21,11 +22,11 @@ function PauseIcon() {
 
 function PencilIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M4 20h4L18.5 9.5a2.121 2.121 0 0 0-3-3L5 17v3z"
         stroke="currentColor"
-        strokeWidth="1.7"
+        strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -35,11 +36,11 @@ function PencilIcon() {
 
 function TrashIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M5 7h14M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2m-7 0 1 12a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-12"
         stroke="currentColor"
-        strokeWidth="1.7"
+        strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -47,8 +48,15 @@ function TrashIcon() {
   )
 }
 
+// Buttons rely on real color/background contrast at rest, not just a
+// :hover state — hover never fires on a touchscreen, so an icon that's
+// only visible on hover is effectively invisible on iOS.
 const iconButtonClass =
-  'flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper hover:text-ink'
+  'flex h-10 w-10 items-center justify-center rounded-full bg-paper text-ink transition-colors active:bg-border'
+const playButtonClass =
+  'flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-600 transition-colors active:bg-brand-100'
+const dangerButtonClass =
+  'flex h-10 w-10 items-center justify-center rounded-full bg-paper text-ink transition-colors active:bg-red-500/15 active:text-red-500'
 
 interface NoteCardProps {
   note: ClientNote
@@ -114,20 +122,20 @@ export default function NoteCard({ note, onEdit, onDelete, onRetryUpload, onDisc
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-2">
           {note.localAudioUrl ? (
             <button
               type="button"
               onClick={togglePlay}
               aria-label={isPlaying ? 'Pause' : 'Play recording'}
-              className={iconButtonClass}
+              className={playButtonClass}
             >
               {isPlaying ? <PauseIcon /> : <PlayIcon />}
             </button>
           ) : (
             hasRealId && (
               <span
-                className={`${iconButtonClass} cursor-default text-ink-soft/40 hover:bg-transparent hover:text-ink-soft/40`}
+                className="flex h-10 w-10 cursor-default items-center justify-center rounded-full bg-paper/60 text-ink-soft/50"
                 title="Playback isn't available yet for notes from a previous session"
               >
                 <PlayIcon />
@@ -140,7 +148,7 @@ export default function NoteCard({ note, onEdit, onDelete, onRetryUpload, onDisc
             </button>
           )}
           {hasRealId && (
-            <button type="button" onClick={handleDelete} aria-label="Delete note" className={iconButtonClass}>
+            <button type="button" onClick={handleDelete} aria-label="Delete note" className={dangerButtonClass}>
               <TrashIcon />
             </button>
           )}
@@ -160,32 +168,47 @@ export default function NoteCard({ note, onEdit, onDelete, onRetryUpload, onDisc
 
       <div className="mt-3">
         {note.status === 'upload-error' ? (
-          <div className="rounded-xl bg-red-500/10 p-3 text-sm text-red-500">
+          <div className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">
             <p>{note.uploadError ?? 'Upload failed.'}</p>
-            <div className="mt-2 flex gap-4">
-              <button type="button" className="font-medium underline" onClick={() => onRetryUpload(note.id)}>
+            <div className="mt-3 flex gap-3">
+              <Button
+                type="button"
+                variant="primary"
+                className="!px-4 !py-2 !text-sm"
+                onClick={() => onRetryUpload(note.id)}
+              >
                 Retry
-              </button>
-              <button type="button" className="font-medium underline" onClick={() => onDiscardUpload(note.id)}>
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="!px-4 !py-2 !text-sm"
+                onClick={() => onDiscardUpload(note.id)}
+              >
                 Discard
-              </button>
+              </Button>
             </div>
           </div>
         ) : isEditing ? (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             <textarea
               className="min-h-24 w-full rounded-xl border border-border bg-paper p-3 text-[16px] text-ink outline-none focus:border-brand-400"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               autoFocus
             />
-            <div className="flex justify-end gap-4 text-sm">
-              <button type="button" onClick={() => setIsEditing(false)} className="text-ink-soft">
+            <div className="flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                className="!px-4 !py-2 !text-sm"
+                onClick={() => setIsEditing(false)}
+              >
                 Cancel
-              </button>
-              <button type="button" onClick={saveEdit} className="font-medium text-brand-600">
+              </Button>
+              <Button type="button" variant="primary" className="!px-4 !py-2 !text-sm" onClick={saveEdit}>
                 Save
-              </button>
+              </Button>
             </div>
           </div>
         ) : transcript ? (

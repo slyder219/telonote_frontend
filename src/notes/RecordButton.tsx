@@ -28,7 +28,7 @@ export default function RecordButton({ onComplete }: RecordButtonProps) {
             type="button"
             onClick={cancel}
             aria-label="Cancel recording"
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-ink-soft transition-colors hover:text-ink"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-ink transition-colors active:bg-paper"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
