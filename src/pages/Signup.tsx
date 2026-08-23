@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { ApiError } from '../api/client'
+import { ApiError, NetworkError } from '../api/client'
 import Button from '../components/Button'
 import TextField from '../components/TextField'
 
@@ -45,7 +45,9 @@ export default function Signup() {
       navigate('/dashboard')
     } catch (error) {
       setFormError(
-        error instanceof ApiError ? error.message : 'Something went wrong. Please try again.',
+        error instanceof ApiError || error instanceof NetworkError
+          ? error.message
+          : 'Something went wrong. Please try again.',
       )
     } finally {
       setIsSubmitting(false)

@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as authApi from '../api/auth'
 import type { AuthSession, User } from '../api/auth'
-import { ApiError } from '../api/client'
+import { ApiError, NetworkError } from '../api/client'
 
 interface Session {
   user: User
@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await authApi.signout()
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
+      if (!(error instanceof ApiError) && !(error instanceof NetworkError)) throw error
     }
     setSession(null)
   }

@@ -34,7 +34,9 @@ export default function Login() {
       navigate('/dashboard')
     } catch (error) {
       setFormError(
-        error instanceof ApiError ? error.message : 'Something went wrong. Please try again.',
+        error instanceof ApiError || error instanceof NetworkError
+          ? error.message
+          : 'Something went wrong. Please try again.',
       )
     } finally {
       setIsSubmitting(false)
