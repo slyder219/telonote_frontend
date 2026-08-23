@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --color-ink: #333438;
+  --color-ink-soft: #6d6e72;
+  --color-paper: #e9e9e6;
+  --color-surface: #e5e3d7;
+  --color-border: rgba(51, 52, 56, 0.14);
+
+  --color-brand-50: #eef2f3;
+  --color-brand-100: #dce6e9;
+  --color-brand-200: #b8ccd2;
+  --color-brand-300: #8aabb5;
+  --color-brand-400: #4f7684;
+  --color-brand-500: #223c4a;
+  --color-brand-600: #1c313d;
+  --color-brand-700: #162630;
+  --color-brand-800: #101c22;
+  --color-brand-900: #0a1216;
+}
+
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-ink: #e9e9e6;
+    --color-ink-soft: #a3a29a;
+    --color-paper: #232326;
+    --color-surface: #333438;
+    --color-border: rgba(233, 233, 230, 0.12);
+  }
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--color-ink);
+  -webkit-box-shadow: 0 0 0px 1000px var(--color-surface) inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
