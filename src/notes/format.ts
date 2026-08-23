@@ -26,6 +26,10 @@ export function formatRelativeTime(isoDate: string): string {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+export function formatResetTime(isoDate: string): string {
+  return new Date(isoDate).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+
 function extensionForMimeType(mimeType: string): string {
   if (mimeType.includes('webm')) return 'webm'
   if (mimeType.includes('mp4')) return 'm4a'

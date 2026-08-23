@@ -3,7 +3,9 @@ import { useAuthenticatedRequest } from '../auth/useAuthenticatedRequest'
 import * as notesApi from '../api/notes'
 import type { NoteDetail, NoteSummary } from '../api/notes'
 import { ApiError, NetworkError } from '../api/client'
+import type { QuotaInfo } from '../api/client'
 import { filenameForMimeType } from './format'
+import { MAX_AUDIO_BYTES } from './audioFileValidation'
 import type { ClientNote } from './types'
 
 const POLL_INTERVAL_MS = 4000
@@ -34,6 +36,7 @@ export function useNotes() {
   const [hasMore, setHasMore] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [bannerMessage, setBannerMessage] = useState<string | null>(null)
+  const [quota, setQuota] = useState<QuotaInfo | null>(null)
 
   const nextOffsetRef = useRef(0)
   const localAudioUrls = useRef(new Map<string, string>())
@@ -131,6 +134,28 @@ export function useNotes() {
     }
   }, [])
 
+  // Best-effort — a persistent quota indicator is a nice-to-have, so a
+  // failure here (e.g. offline on load) just means no ring until the next
+  // successful upload/retranscribe naturally supplies quota headers.
+  useEffect(() => {
+    let cancelled = false
+    callWithAuthRetryRef
+      .current((token) => notesApi.getUsage(token))
+      .then((usage) => {
+        if (cancelled) return
+        setQuota({
+          limitBytes: usage.limit_bytes,
+          usedBytes: usage.used_bytes,
+          remainingBytes: usage.remaining_bytes,
+          resetsAt: usage.resets_at,
+        })
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const loadMore = useCallback(async () => {
     if (isLoadingMore || !hasMore) return
     setIsLoadingMore(true)
@@ -178,10 +203,27 @@ export function useNotes() {
       }
       setNotes((current) => [optimisticNote, ...current])
 
+      if (blob.size > MAX_AUDIO_BYTES) {
+        setNotes((current) =>
+          current.map((note) =>
+            note.id === tempId
+              ? {
+                  ...note,
+                  status: 'upload-error',
+                  uploadError: `That recording is ${(blob.size / (1024 * 1024)).toFixed(1)}MB — the limit is 24MB.`,
+                  pendingUpload: { blob, mimeType },
+                }
+              : note,
+          ),
+        )
+        return
+      }
+
       try {
-        const created = await callWithAuthRetry((token) =>
+        const { data: created, quota: quotaInfo } = await callWithAuthRetry((token) =>
           notesApi.createNote(blob, filenameForMimeType(mimeType), token),
         )
+        if (quotaInfo) setQuota(quotaInfo)
         localAudioUrls.current.delete(tempId)
         localAudioUrls.current.set(created.id, localUrl)
         const unprocessed = detailIsUnprocessed(created)
@@ -202,6 +244,7 @@ export function useNotes() {
         )
         if (unprocessed) schedulePoll(created.id, 0)
       } catch (error) {
+        if (error instanceof ApiError && error.quota) setQuota(error.quota)
         const message =
           error instanceof ApiError || error instanceof NetworkError
             ? error.message
@@ -227,7 +270,8 @@ export function useNotes() {
         current.map((n) => (n.id === id ? { ...n, status: 'uploading', uploadError: undefined } : n)),
       )
       callWithAuthRetry((token) => notesApi.createNote(blob, filenameForMimeType(mimeType), token))
-        .then((created) => {
+        .then(({ data: created, quota: quotaInfo }) => {
+          if (quotaInfo) setQuota(quotaInfo)
           const localUrl = localAudioUrls.current.get(id)
           if (localUrl) {
             localAudioUrls.current.delete(id)
@@ -252,6 +296,7 @@ export function useNotes() {
           if (unprocessed) schedulePoll(created.id, 0)
         })
         .catch((error) => {
+          if (error instanceof ApiError && error.quota) setQuota(error.quota)
           const message =
             error instanceof ApiError || error instanceof NetworkError
               ? error.message
@@ -395,7 +440,10 @@ export function useNotes() {
       )
 
       try {
-        const updated = await callWithAuthRetry((token) => notesApi.retranscribeNote(id, token))
+        const { data: updated, quota: quotaInfo } = await callWithAuthRetry((token) =>
+          notesApi.retranscribeNote(id, token),
+        )
+        if (quotaInfo) setQuota(quotaInfo)
         const unprocessed = detailIsUnprocessed(updated)
         setNotes((current) =>
           current.map((note) =>
@@ -412,6 +460,7 @@ export function useNotes() {
         )
         if (unprocessed) schedulePoll(id, 0)
       } catch (error) {
+        if (error instanceof ApiError && error.quota) setQuota(error.quota)
         setNotes((current) =>
           current.map((note) =>
             note.id === id ? { ...note, status: previousStatus ?? 'ready' } : note,
@@ -462,5 +511,6 @@ export function useNotes() {
     bulkDeleteNotes,
     retranscribeNote,
     fetchAudioUrl,
+    quota,
   }
 }

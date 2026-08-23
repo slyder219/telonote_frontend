@@ -63,12 +63,41 @@ Use this to rehydrate user state on app load if you still have a valid access to
 
 All require `Authorization: Bearer <access_token>`. A note belongs to exactly one user - trying to read/edit/delete someone else's note returns `404` (not `403`), same as it not existing.
 
+### Daily usage quota
+
+`POST /notes` and `POST /notes/{note_id}/retranscribe` (the two actions that run the paid AI pipeline) are metered by a daily byte quota - sized by audio bytes, not a request count, since a single long note can cost far more than several short ones. Free-tier default is **10MB/day**; some users may have a custom limit. Resets at midnight **America/New_York** (DST-aware, not a fixed UTC offset).
+
+**Every response from those two endpoints** - success or `429` - includes these headers, so you don't need a separate call just to update a quota display after an action:
+```
+X-Daily-Limit-Bytes: 10000000
+X-Daily-Used-Bytes: 3245000
+X-Daily-Remaining-Bytes: 6755000
+X-Daily-Reset-At: 2026-08-24T00:00:00-04:00   (ISO 8601, already resolved to an absolute instant - safe to new Date() directly, no timezone math needed on your end)
+```
+Use `remaining_bytes / limit_bytes` (or the header equivalents) to decide when to show a proactive warning in the UI (e.g. under 20% remaining) - there's no server-decided warning threshold, so pick whatever feels right for your UX.
+
+To show a quota meter **without** requiring the user to take an action first (e.g. a persistent "3.2 / 10 MB used today" indicator), call:
+
+### `GET /notes/usage`
+No params. Response `200`:
+```json
+{ "limit_bytes": 10000000, "used_bytes": 3245000, "remaining_bytes": 6755000, "resets_at": "2026-08-24T00:00:00-04:00" }
+```
+
+When quota is exhausted, `POST /notes` / `.../retranscribe` return `429` with the usual error envelope plus the same headers:
+```json
+{ "error": true, "status_code": 429, "detail": "Daily usage limit reached: 8.3MB of 10MB used today. Resets at 2026-08-24T00:00:00-04:00 (America/New_York midnight)." }
+```
+The `detail` string is human-readable and safe to show directly, or build your own message from the headers/`GET /notes/usage` fields if you want tighter control over wording.
+
 ### `POST /notes` — upload a new voice note
 `multipart/form-data` with one field: `audio` (the audio file).
 
 **This is synchronous and runs the full pipeline** before responding: rough transcription → semantic context lookup (+ any `always_include` items) → final transcription with that context folded in. Expect this call to take a couple of seconds (typically ~2-3s) - show a loading/processing state, don't treat that latency as a failure.
 
 Audio is always stored first, independent of everything else - if a transcription step fails partway, the note still exists with whatever progress was made (e.g. a rough transcript but no final one) rather than the upload being lost. Audio must be a **compressed** format - reject/re-encode uncompressed recordings (`wav`, `aiff`, `flac`, raw PCM) client-side before uploading if that's how your recorder captures it. Accepted: mp3, m4a/aac, ogg, webm, opus, 3gp, amr, mp4 (by content-type or file extension).
+
+**Max file size: 24MB** - this is a hard ceiling from OpenAI's transcription API (25MB), not an arbitrary choice. This is a *size* limit, not a duration one - how much recording time fits depends entirely on the encoding bitrate. A low-bitrate voice codec (~24-32kbps, e.g. Opus) can fit close to 2 hours in that budget; a typical 64-128kbps recording will only fit roughly 25-50 minutes. If you want to support long recordings, encode at a low bitrate client-side.
 
 Response `201`:
 ```json
@@ -90,11 +119,13 @@ Response `201`:
 ```
 Any of the transcript/model/timing fields can come back `null` if that step failed or produced nothing - `final_transcript` in particular can be missing even when `rough_transcript` isn't. Treat a note with a real `final_transcript` as done; anything else as still show it, but don't assume it's final.
 
-The audio itself is stored (as bytes, directly in the database - no object storage yet). It is **not** returned in any response body; there's no `GET` for the raw audio yet either.
+The audio itself is stored (as bytes, directly in the database - no object storage yet) and not included in this response body - fetch it separately via `GET /notes/{note_id}/audio` below if needed.
 
 Setting a real `final_transcript` here also kicks off **context candidate extraction** in the background (same as `.../retranscribe`, see the Context section) - no separate call needed.
 
-Errors: `400` if the uploaded file is empty, or if it's not a recognized compressed audio format.
+Errors: `400` if the uploaded file is empty, too large, or not a recognized compressed format. `429` if the daily usage quota is exhausted - see **Daily usage quota** below.
+
+Every response (success or `429`) includes quota headers - see below.
 
 ### `GET /notes` — list the caller's notes
 Query params: `limit` (default 50, max 200), `offset` (default 0). Newest first.
@@ -119,7 +150,7 @@ audioEl.src = URL.createObjectURL(blob); // revoke with URL.revokeObjectURL when
 ### `POST /notes/{note_id}/retranscribe` — re-run transcription on the stored audio
 No body. Re-runs the full pipeline (rough → context → final) against this note's already-stored audio and overwrites its transcript/model/timing fields - useful as a "try again" action, or after the user has approved new context items that might now help. Synchronous, same latency profile as `POST /notes`.
 
-Response `200`: full updated note object, same shape as `POST /notes`. `404` if the note doesn't exist/isn't yours/is deleted, or has no audio stored.
+Response `200`: full updated note object, same shape as `POST /notes`. `404` if the note doesn't exist/isn't yours/is deleted, or has no audio stored. `429` if the daily quota is exhausted - counts against the same quota as `POST /notes`, sized by the stored audio's byte length. Same quota headers included as `POST /notes`.
 
 Also re-triggers context candidate extraction in the background if a real `final_transcript` resulted, same as `POST /notes`.
 

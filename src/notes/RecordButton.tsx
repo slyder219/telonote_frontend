@@ -1,18 +1,30 @@
 import { useVoiceRecorder } from './useVoiceRecorder'
-import { formatDuration } from './format'
+import { formatDuration, formatResetTime } from './format'
+import QuotaRing from './QuotaRing'
+import type { QuotaInfo } from '../api/client'
+
+const WARNING_THRESHOLD = 0.2 // show the ring once 20% or less of today's quota remains
+const RING_SIZE = 108
 
 interface RecordButtonProps {
   onComplete: (blob: Blob, mimeType: string, durationMs: number) => void
+  quota: QuotaInfo | null
 }
 
-export default function RecordButton({ onComplete }: RecordButtonProps) {
+export default function RecordButton({ onComplete, quota }: RecordButtonProps) {
   const { status, error, elapsedMs, start, stop, cancel, dismissError } = useVoiceRecorder()
 
   const isRecording = status === 'recording'
   const isRequesting = status === 'requesting'
 
+  const percentRemaining = quota ? quota.remainingBytes / quota.limitBytes : 1
+  const showQuotaWarning = quota !== null && percentRemaining <= WARNING_THRESHOLD
+  const isExhausted = quota !== null && quota.remainingBytes <= 0
+  const percentRemainingLabel = Math.round(Math.max(0, percentRemaining) * 100)
+
   const handlePress = async () => {
     if (status === 'idle' || status === 'error') {
+      if (isExhausted) return
       await start()
     } else if (isRecording) {
       const result = await stop()
@@ -41,13 +53,14 @@ export default function RecordButton({ onComplete }: RecordButtonProps) {
           )}
         </div>
 
-        <div className="flex justify-center">
+        <div className="relative flex items-center justify-center" style={{ width: RING_SIZE, height: RING_SIZE }}>
+          {showQuotaWarning && <QuotaRing percentRemaining={percentRemaining} size={RING_SIZE} />}
           <button
             type="button"
             onClick={handlePress}
-            disabled={isRequesting}
+            disabled={isRequesting || (isExhausted && !isRecording)}
             aria-label={isRecording ? 'Stop and send recording' : 'Start recording'}
-            className={`relative flex h-24 w-24 items-center justify-center rounded-full text-white shadow-lg transition-colors disabled:cursor-wait ${
+            className={`relative flex h-24 w-24 items-center justify-center rounded-full text-white shadow-lg transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
               isRecording
                 ? 'bg-red-500 shadow-red-500/30'
                 : 'bg-brand-500 shadow-brand-500/30 hover:bg-brand-600'
@@ -74,8 +87,19 @@ export default function RecordButton({ onComplete }: RecordButtonProps) {
       <p className="text-sm text-ink-soft">
         {isRequesting && 'Requesting microphone access…'}
         {isRecording && formatDuration(elapsedMs)}
-        {status === 'idle' && 'Tap to record a note'}
+        {!isRequesting && !isRecording && (isExhausted ? null : 'Tap to record a note')}
       </p>
+
+      {!isRecording && !isRequesting && quota && isExhausted && (
+        <p className="max-w-xs text-center text-sm text-red-500">
+          Daily limit reached. Resets at {formatResetTime(quota.resetsAt)}.
+        </p>
+      )}
+      {!isRecording && !isRequesting && quota && showQuotaWarning && !isExhausted && (
+        <p className="max-w-xs text-center text-sm text-amber-500">
+          {percentRemainingLabel}% of today's limit left.
+        </p>
+      )}
 
       {error && (
         <div className="flex max-w-xs flex-col items-center gap-2 rounded-xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-center text-sm text-red-500">

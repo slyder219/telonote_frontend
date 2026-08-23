@@ -13,12 +13,21 @@ function primaryBaseUrl(): string {
   return prodBaseUrlOverride ?? NEW_PROD_BASE_URL
 }
 
+export interface QuotaInfo {
+  limitBytes: number
+  usedBytes: number
+  remainingBytes: number
+  resetsAt: string
+}
+
 export class ApiError extends Error {
   status: number
+  quota: QuotaInfo | null
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, quota: QuotaInfo | null = null) {
     super(message)
     this.status = status
+    this.quota = quota
   }
 }
 
@@ -62,6 +71,20 @@ async function extractErrorMessage(response: Response): Promise<string> {
   return `Request failed with status ${response.status}`
 }
 
+function parseQuotaHeaders(response: Response): QuotaInfo | null {
+  const limitBytes = response.headers.get('X-Daily-Limit-Bytes')
+  const usedBytes = response.headers.get('X-Daily-Used-Bytes')
+  const remainingBytes = response.headers.get('X-Daily-Remaining-Bytes')
+  const resetsAt = response.headers.get('X-Daily-Reset-At')
+  if (!limitBytes || !usedBytes || !remainingBytes || !resetsAt) return null
+  return {
+    limitBytes: Number(limitBytes),
+    usedBytes: Number(usedBytes),
+    remainingBytes: Number(remainingBytes),
+    resetsAt,
+  }
+}
+
 async function rawFetch(baseUrl: string, path: string, init: RequestInit): Promise<Response> {
   try {
     return await fetch(`${baseUrl}${path}`, init)
@@ -102,7 +125,7 @@ async function fetchWithFallback(path: string, options: RequestOptions): Promise
   }
 
   if (!response.ok) {
-    throw new ApiError(response.status, await extractErrorMessage(response))
+    throw new ApiError(response.status, await extractErrorMessage(response), parseQuotaHeaders(response))
   }
 
   return response
@@ -119,4 +142,17 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
 export async function apiFetchBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
   const response = await fetchWithFallback(path, options)
   return response.blob()
+}
+
+/** Like apiFetch, but also surfaces the daily-quota response headers (used by the note-upload/retranscribe endpoints). */
+export async function apiFetchWithQuota<T>(
+  path: string,
+  options: RequestOptions = {},
+): Promise<{ data: T; quota: QuotaInfo | null }> {
+  const response = await fetchWithFallback(path, options)
+  const quota = parseQuotaHeaders(response)
+  if (response.status === 204) {
+    return { data: undefined as T, quota }
+  }
+  return { data: (await response.json()) as T, quota }
 }

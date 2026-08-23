@@ -41,6 +41,7 @@ export default function Dashboard() {
     bulkDeleteNotes,
     retranscribeNote,
     fetchAudioUrl,
+    quota,
   } = useNotes()
 
   const [query, setQuery] = useState('')
@@ -82,7 +83,7 @@ export default function Dashboard() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col px-4 pb-16 sm:px-6">
-      <RecordButton onComplete={uploadRecording} />
+      <RecordButton onComplete={uploadRecording} quota={quota} />
       <div className="mb-4 flex justify-center">
         <UploadAudioButton onUpload={uploadRecording} />
       </div>

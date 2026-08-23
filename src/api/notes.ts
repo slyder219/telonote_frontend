@@ -1,4 +1,4 @@
-import { apiFetch, apiFetchBlob } from './client'
+import { apiFetch, apiFetchBlob, apiFetchWithQuota } from './client'
 
 export interface NoteSummary {
   id: string
@@ -37,7 +37,7 @@ export function getNote(id: string, accessToken: string) {
 export function createNote(audio: Blob, filename: string, accessToken: string) {
   const formData = new FormData()
   formData.append('audio', audio, filename)
-  return apiFetch<NoteDetail>('/notes', {
+  return apiFetchWithQuota<NoteDetail>('/notes', {
     method: 'POST',
     body: formData,
     accessToken,
@@ -70,9 +70,20 @@ export function getNoteAudio(id: string, accessToken: string) {
 // its transcript/model/timing fields. Synchronous — same latency profile as
 // POST /notes.
 export function retranscribeNote(id: string, accessToken: string) {
-  return apiFetch<NoteDetail>(`/notes/${id}/retranscribe`, {
+  return apiFetchWithQuota<NoteDetail>(`/notes/${id}/retranscribe`, {
     method: 'POST',
     accessToken,
     withCredentials: false,
   })
+}
+
+export interface UsageInfo {
+  limit_bytes: number
+  used_bytes: number
+  remaining_bytes: number
+  resets_at: string
+}
+
+export function getUsage(accessToken: string) {
+  return apiFetch<UsageInfo>('/notes/usage', { accessToken, withCredentials: false })
 }
