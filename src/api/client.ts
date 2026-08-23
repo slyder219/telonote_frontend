@@ -1,6 +1,17 @@
-const PROD_BASE_URL = 'https://telonote-backend-862230541486.us-central1.run.app'
+const NEW_PROD_BASE_URL = 'https://be.telonote.com'
+const LEGACY_PROD_BASE_URL = 'https://telonote-backend-862230541486.us-central1.run.app'
+const LOCAL_BASE_URL = import.meta.env.VITE_LOCAL_BACKEND as string | undefined
 
-export const API_BASE_URL = import.meta.env.VITE_LOCAL_BACKEND || PROD_BASE_URL
+// Once a request against the new host fails outright (DNS not resolving yet,
+// connection refused, etc.), remember that for the rest of the session so we
+// don't eat a failed-connection timeout on every subsequent call — just go
+// straight to the legacy host until the next full page load.
+let prodBaseUrlOverride: string | null = null
+
+function primaryBaseUrl(): string {
+  if (LOCAL_BASE_URL) return LOCAL_BASE_URL
+  return prodBaseUrlOverride ?? NEW_PROD_BASE_URL
+}
 
 export class ApiError extends Error {
   status: number
@@ -51,6 +62,15 @@ async function extractErrorMessage(response: Response): Promise<string> {
   return `Request failed with status ${response.status}`
 }
 
+async function rawFetch(baseUrl: string, path: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(`${baseUrl}${path}`, init)
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    throw new NetworkError("Can't reach the server. Check your connection and try again.")
+  }
+}
+
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, accessToken, withCredentials = true, signal } = options
   const isFormData = body instanceof FormData
@@ -60,18 +80,25 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   if (body !== undefined && !isFormData) headers['Content-Type'] = 'application/json'
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`
 
+  const init: RequestInit = {
+    method,
+    headers,
+    credentials: withCredentials ? 'include' : 'omit',
+    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
+    signal,
+  }
+
   let response: Response
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      method,
-      headers,
-      credentials: withCredentials ? 'include' : 'omit',
-      body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
-      signal,
-    })
+    response = await rawFetch(primaryBaseUrl(), path, init)
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw error
-    throw new NetworkError("Can't reach the server. Check your connection and try again.")
+    // A dead host (e.g. be.telonote.com not resolving yet during DNS cutover)
+    // fails at the network level, not with an HTTP status — retry once
+    // against the known-good legacy host before giving up.
+    const canFallBack = !LOCAL_BASE_URL && primaryBaseUrl() !== LEGACY_PROD_BASE_URL
+    if (!canFallBack || !(error instanceof NetworkError)) throw error
+    response = await rawFetch(LEGACY_PROD_BASE_URL, path, init)
+    prodBaseUrlOverride = LEGACY_PROD_BASE_URL
   }
 
   if (!response.ok) {
