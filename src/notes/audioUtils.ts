@@ -1,3 +1,20 @@
+// Preference order matters: webm/opus is well-supported on Chrome/Firefox/Android,
+// mp4/aac is what Safari (iOS + macOS) actually produces. All of these are
+// compressed formats the backend accepts — never fall back to raw wav/pcm.
+const MIME_CANDIDATES = [
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/mp4;codecs=mp4a.40.2',
+  'audio/mp4',
+  'audio/ogg;codecs=opus',
+  'audio/ogg',
+]
+
+export function pickSupportedMimeType(): string | undefined {
+  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return undefined
+  return MIME_CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type))
+}
+
 /**
  * Chrome/Firefox report `duration: Infinity` for a MediaRecorder-produced
  * WebM blob until something forces a seek near the end — WebM (being a

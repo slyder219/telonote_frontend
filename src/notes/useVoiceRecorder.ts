@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { pickSupportedMimeType } from './audioUtils'
 
 export type RecorderStatus = 'idle' | 'requesting' | 'recording' | 'error'
 
@@ -6,23 +7,6 @@ export interface RecordingResult {
   blob: Blob
   mimeType: string
   durationMs: number
-}
-
-// Preference order matters: webm/opus is well-supported on Chrome/Firefox/Android,
-// mp4/aac is what Safari (iOS + macOS) actually produces. All of these are
-// compressed formats the backend accepts — never fall back to raw wav/pcm.
-const MIME_CANDIDATES = [
-  'audio/webm;codecs=opus',
-  'audio/webm',
-  'audio/mp4;codecs=mp4a.40.2',
-  'audio/mp4',
-  'audio/ogg;codecs=opus',
-  'audio/ogg',
-]
-
-function pickSupportedMimeType(): string | undefined {
-  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return undefined
-  return MIME_CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type))
 }
 
 function describeMicError(error: unknown): string {
