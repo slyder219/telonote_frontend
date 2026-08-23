@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { ApiError, NetworkError } from '../api/client'
+import { usePageMeta } from '../hooks/usePageMeta'
 import Button from '../components/Button'
 import TextField from '../components/TextField'
 
@@ -16,6 +17,7 @@ interface FormErrors {
 }
 
 export default function Signup() {
+  usePageMeta('Sign up — Telonote', { noindex: true })
   const { signup } = useAuth()
   const navigate = useNavigate()
 

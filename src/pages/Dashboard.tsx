@@ -1,30 +1,72 @@
-import { useAuth } from '../auth/AuthContext'
+import { usePageMeta } from '../hooks/usePageMeta'
+import { useNotes } from '../notes/useNotes'
+import RecordButton from '../notes/RecordButton'
+import NoteCard from '../notes/NoteCard'
+import Banner from '../notes/Banner'
+
+function SkeletonCard() {
+  return (
+    <div className="animate-pulse rounded-2xl border border-border bg-surface p-4">
+      <div className="h-3 w-24 rounded bg-border" />
+      <div className="mt-4 h-3 w-full rounded bg-border" />
+      <div className="mt-2 h-3 w-2/3 rounded bg-border" />
+    </div>
+  )
+}
 
 export default function Dashboard() {
-  const { user } = useAuth()
+  usePageMeta('Dashboard — Telonote', { noindex: true })
+  const {
+    notes,
+    isLoadingInitial,
+    loadError,
+    bannerMessage,
+    dismissBanner,
+    uploadRecording,
+    retryUpload,
+    discardUpload,
+    editTranscript,
+    deleteNoteById,
+  } = useNotes()
 
   return (
-    <div className="mx-auto flex max-w-lg flex-col items-center px-6 py-16 text-center">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">
-        Welcome, {user?.name}
-      </h1>
-      <p className="mt-2 text-ink-soft">
-        Recording and transcripts land here once Telonote is connected to the backend.
-      </p>
+    <div className="mx-auto flex max-w-2xl flex-col px-4 pb-16 sm:px-6">
+      <RecordButton onComplete={uploadRecording} />
 
-      <button
-        type="button"
-        disabled
-        className="mt-10 flex h-24 w-24 items-center justify-center rounded-full bg-brand-200 shadow-inner disabled:cursor-not-allowed"
-        aria-label="Recording coming soon"
-      >
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <rect x="9" y="3" width="6" height="12" rx="3" fill="#fff" />
-          <path d="M6 11a6 6 0 0 0 12 0" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-          <path d="M12 17v3" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-      </button>
-      <p className="mt-3 text-sm text-ink-soft">Recording — coming soon</p>
+      {bannerMessage && (
+        <div className="mb-4">
+          <Banner message={bannerMessage} onDismiss={dismissBanner} />
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3">
+        {isLoadingInitial ? (
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
+        ) : loadError ? (
+          <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-center text-sm text-red-500">
+            {loadError}
+          </div>
+        ) : notes.length === 0 ? (
+          <div className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-ink-soft">
+            No notes yet. Tap record to make your first one.
+          </div>
+        ) : (
+          notes.map((note) => (
+            <NoteCard
+              key={note.id}
+              note={note}
+              onEdit={editTranscript}
+              onDelete={deleteNoteById}
+              onRetryUpload={retryUpload}
+              onDiscardUpload={discardUpload}
+            />
+          ))
+        )}
+      </div>
     </div>
   )
 }

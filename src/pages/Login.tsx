@@ -3,12 +3,14 @@ import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { ApiError, NetworkError } from '../api/client'
+import { usePageMeta } from '../hooks/usePageMeta'
 import Button from '../components/Button'
 import TextField from '../components/TextField'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export default function Login() {
+  usePageMeta('Log in — Telonote', { noindex: true })
   const { login } = useAuth()
   const navigate = useNavigate()
 

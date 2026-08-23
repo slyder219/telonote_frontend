@@ -18,6 +18,7 @@ interface RequestOptions {
   body?: unknown
   accessToken?: string | null
   withCredentials?: boolean
+  signal?: AbortSignal
 }
 
 function firstString(...values: unknown[]): string | undefined {
@@ -51,10 +52,12 @@ async function extractErrorMessage(response: Response): Promise<string> {
 }
 
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, accessToken, withCredentials = true } = options
+  const { method = 'GET', body, accessToken, withCredentials = true, signal } = options
+  const isFormData = body instanceof FormData
 
   const headers: Record<string, string> = {}
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  // FormData sets its own Content-Type (with the multipart boundary) — never override it.
+  if (body !== undefined && !isFormData) headers['Content-Type'] = 'application/json'
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`
 
   let response: Response
@@ -63,9 +66,11 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
       method,
       headers,
       credentials: withCredentials ? 'include' : 'omit',
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
+      signal,
     })
-  } catch {
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
     throw new NetworkError("Can't reach the server. Check your connection and try again.")
   }
 

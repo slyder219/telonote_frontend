@@ -18,6 +18,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>
   signup: (name: string, email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  refreshAccessToken: () => Promise<string>
 }
 
 const REFRESH_MARGIN_MS = 60_000
@@ -79,6 +80,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(toSession(auth))
   }
 
+  // Lets callers outside the proactive-refresh timer (e.g. a notes API call
+  // that got an unexpected 401) force a new access token on demand.
+  const refreshAccessToken = async () => {
+    const auth = await authApi.refresh()
+    setSession(toSession(auth))
+    return auth.access_token
+  }
+
   const logout = async () => {
     try {
       await authApi.signout()
@@ -97,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       signup,
       logout,
+      refreshAccessToken,
     }),
     [session, isLoading],
   )
