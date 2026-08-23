@@ -13,6 +13,8 @@ export default function AddItemForm({ onAdd }: AddItemFormProps) {
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('')
   const [alwaysInclude, setAlwaysInclude] = useState(false)
+  const [aliases, setAliases] = useState<string[]>([])
+  const [aliasDraft, setAliasDraft] = useState('')
   const [error, setError] = useState('')
 
   const reset = () => {
@@ -20,7 +22,15 @@ export default function AddItemForm({ onAdd }: AddItemFormProps) {
     setDescription('')
     setCategory('')
     setAlwaysInclude(false)
+    setAliases([])
+    setAliasDraft('')
     setError('')
+  }
+
+  const addAlias = () => {
+    const value = aliasDraft.trim()
+    if (value && !aliases.includes(value)) setAliases([...aliases, value])
+    setAliasDraft('')
   }
 
   const handleAdd = () => {
@@ -33,6 +43,7 @@ export default function AddItemForm({ onAdd }: AddItemFormProps) {
       description: description.trim() || undefined,
       category: category.trim() || undefined,
       always_include: alwaysInclude,
+      aliases: aliases.length > 0 ? aliases : undefined,
     })
     reset()
     setIsOpen(false)
@@ -81,6 +92,45 @@ export default function AddItemForm({ onAdd }: AddItemFormProps) {
         />
         Always include in transcription context
       </label>
+      <div>
+        <span className="mb-1.5 block text-sm font-medium text-ink">Aliases</span>
+        <div className="flex flex-wrap gap-1.5">
+          {aliases.map((alias) => (
+            <span
+              key={alias}
+              className="inline-flex items-center gap-1 rounded-full bg-paper px-2.5 py-1 text-xs text-ink-soft"
+            >
+              {alias}
+              <button
+                type="button"
+                onClick={() => setAliases(aliases.filter((a) => a !== alias))}
+                aria-label={`Remove alias ${alias}`}
+                className="text-ink-soft hover:text-ink"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="mt-2 flex gap-2">
+          <input
+            type="text"
+            value={aliasDraft}
+            onChange={(e) => setAliasDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault()
+                addAlias()
+              }
+            }}
+            placeholder="Add an alias, press Enter"
+            className="w-full rounded-xl border border-border bg-paper px-3 py-2 text-[16px] text-ink outline-none focus:border-brand-400"
+          />
+          <Button type="button" variant="secondary" className="!px-3 !py-2 !text-sm" onClick={addAlias}>
+            Add
+          </Button>
+        </div>
+      </div>
       <div className="flex justify-end gap-3">
         <Button
           type="button"
