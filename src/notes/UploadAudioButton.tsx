@@ -89,7 +89,13 @@ export default function UploadAudioButton({ onUpload }: UploadAudioButtonProps) 
       <input
         ref={inputRef}
         type="file"
-        accept="audio/*,.3gp,.amr"
+        // iOS Safari's Files picker over-filters on the `audio/*` MIME
+        // wildcard alone — it hides plenty of legitimate audio (m4a
+        // included) that doesn't match whatever UTI it's checking against.
+        // Listing every extension explicitly, accepted and transcodable
+        // alike, works around that; our own JS validation is the real
+        // gatekeeper regardless of what this lets through.
+        accept="audio/*,.mp3,.m4a,.aac,.ogg,.webm,.opus,.3gp,.amr,.mp4,.wav,.aiff,.aif,.flac"
         onChange={handleChange}
         className="hidden"
       />
