@@ -5,6 +5,7 @@ import SwipeableRow from '../components/SwipeableRow'
 import AudioScrubber from './AudioScrubber'
 import Highlight from '../search/Highlight'
 import type { ClientNote } from './types'
+import type { QuotaInfo } from '../api/client'
 
 function PlayIcon() {
   return (
@@ -139,6 +140,7 @@ interface NoteCardProps {
   selected?: boolean
   onToggleSelect?: (id: string) => void
   searchQuery: string
+  quota?: QuotaInfo | null
 }
 
 export default function NoteCard({
@@ -152,6 +154,7 @@ export default function NoteCard({
   selected = false,
   onToggleSelect,
   searchQuery,
+  quota = null,
 }: NoteCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState(note.finalTranscript ?? '')
@@ -170,6 +173,7 @@ export default function NoteCard({
   const transcript = note.finalTranscript ?? note.roughTranscript
   const hasRealId = note.status === 'ready' || note.status === 'processing'
   const canPlay = hasRealId || Boolean(note.localAudioUrl)
+  const isQuotaExhausted = quota !== null && quota.remainingBytes <= 0
   // Retranscribing an already-transcribed note reuses the 'processing'
   // status too, but here there's old text still on screen — treat that
   // case as "updating this text" rather than the empty "no transcript yet".
@@ -346,8 +350,10 @@ export default function NoteCard({
               <button
                 type="button"
                 onClick={handleRetranscribe}
+                disabled={isQuotaExhausted}
                 aria-label="Re-run transcription"
-                className={iconButtonClass}
+                title={isQuotaExhausted ? "Daily limit reached — can't re-transcribe until it resets." : undefined}
+                className={`${iconButtonClass} disabled:cursor-not-allowed disabled:opacity-40 disabled:active:bg-paper`}
               >
                 <RefreshIcon />
               </button>

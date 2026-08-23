@@ -26,7 +26,7 @@ export default function Subscription() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [pendingPlan, setPendingPlan] = useState<'pro_monthly' | 'pro_yearly' | null>(null)
+  const [isUpgrading, setIsUpgrading] = useState(false)
   const [isOpeningPortal, setIsOpeningPortal] = useState(false)
 
   // Mount-only load, plus a re-check whenever the tab regains focus (the
@@ -69,18 +69,20 @@ export default function Subscription() {
     return () => window.removeEventListener('focus', refetch)
   }, [refetch])
 
-  const handleUpgrade = async (plan: 'pro_monthly' | 'pro_yearly') => {
+  const handleUpgrade = async () => {
     setActionError(null)
-    setPendingPlan(plan)
+    setIsUpgrading(true)
     try {
       const info = await callWithAuthRetry((token) => billingApi.getCheckoutInfo(token))
-      const priceId = info.price_ids[plan]
+      // Telonote currently has exactly one paid plan in Paddle — a single
+      // monthly price under the key "paid". No yearly price exists yet.
+      const priceId = info.price_ids.paid
       if (!priceId) throw new Error("That plan isn't available right now.")
       await openCheckout(priceId, info)
     } catch (error) {
       setActionError(messageFor(error, "Couldn't start checkout."))
     } finally {
-      setPendingPlan(null)
+      setIsUpgrading(false)
     }
   }
 
@@ -161,24 +163,9 @@ export default function Subscription() {
               {status?.subscription_status === 'paused' && (
                 <p className="mt-2 text-sm text-ink-soft">Your Pro subscription is paused.</p>
               )}
-              <div className="mt-4 flex flex-wrap gap-3">
-                <Button
-                  type="button"
-                  variant="primary"
-                  isLoading={pendingPlan === 'pro_monthly'}
-                  disabled={pendingPlan !== null}
-                  onClick={() => handleUpgrade('pro_monthly')}
-                >
-                  Upgrade to Pro — monthly
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  isLoading={pendingPlan === 'pro_yearly'}
-                  disabled={pendingPlan !== null}
-                  onClick={() => handleUpgrade('pro_yearly')}
-                >
-                  Upgrade to Pro — yearly
+              <div className="mt-4">
+                <Button type="button" variant="primary" isLoading={isUpgrading} onClick={handleUpgrade}>
+                  Upgrade to Pro — $7.89/month
                 </Button>
               </div>
               {hasEverSubscribed && (

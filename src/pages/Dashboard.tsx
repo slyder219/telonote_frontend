@@ -291,6 +291,7 @@ export default function Dashboard() {
                     selected={selection.isSelected(note.id)}
                     onToggleSelect={selection.toggle}
                     searchQuery={query}
+                    quota={quota}
                   />
                 ))}
               </div>
@@ -310,6 +311,7 @@ export default function Dashboard() {
               selected={selection.isSelected(note.id)}
               onToggleSelect={selection.toggle}
               searchQuery=""
+              quota={quota}
             />
           ))
         )}
