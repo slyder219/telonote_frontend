@@ -4,7 +4,10 @@ import Logo from './Logo'
 export default function Footer() {
   return (
     <footer className="mt-auto border-t border-border bg-surface/60">
-      <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-6 py-8 text-sm text-ink-soft sm:flex-row sm:justify-between">
+      {/* Extra bottom padding on mobile so this stays reachable below the
+          fixed bottom tab bar shown on authenticated app pages — a bit of
+          unused whitespace on public pages beats content getting covered. */}
+      <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-6 pb-24 pt-8 text-sm text-ink-soft sm:flex-row sm:justify-between sm:pb-8">
         <Logo />
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
           <Link to="/pricing" className="hover:text-ink">

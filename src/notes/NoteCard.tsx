@@ -338,14 +338,14 @@ export default function NoteCard({
               </>
             )}
             {note.status === 'uploading' && (
-              <span className="inline-flex shrink-0 items-center gap-1.5 text-brand-400">
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-400 border-t-transparent" />
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-brand-500 px-2 py-0.5 text-white">
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" />
                 Sending…
               </span>
             )}
             {note.status === 'processing' && (
-              <span className="inline-flex shrink-0 items-center gap-1.5 text-brand-400">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-brand-500 px-2 py-0.5 text-white">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
                 Transcribing…
               </span>
             )}
@@ -570,21 +570,25 @@ export default function NoteCard({
           ) : transcript ? (
             <div>
               {isRetranscribingNow && (
-                <p className="mb-1.5 inline-flex items-center gap-1.5 text-xs text-brand-400">
-                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-400 border-t-transparent" />
+                <p className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-brand-500 px-2 py-0.5 text-xs text-white">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" />
                   Re-transcribing…
                 </p>
               )}
               <p
-                className={`whitespace-pre-wrap rounded-lg text-[15px] leading-relaxed text-ink transition-colors duration-700 ${
+                className={`whitespace-pre-wrap rounded-lg text-[15px] leading-relaxed text-ink transition-opacity duration-700 ${
                   isRetranscribingNow ? 'opacity-50' : ''
-                } ${justUpdated ? 'bg-brand-50' : 'bg-transparent'}`}
+                } ${justUpdated ? 'reveal-flash' : ''}`}
               >
                 <Highlight text={transcript} query={searchQuery} />
               </p>
             </div>
           ) : note.status === 'uploading' || note.status === 'processing' ? (
-            <p className="text-sm italic text-ink-soft">Transcribing your note…</p>
+            <div className="flex flex-col gap-2">
+              <div className="shimmer h-3.5 w-full rounded" />
+              <div className="shimmer h-3.5 w-4/5 rounded" />
+              <div className="shimmer h-3.5 w-2/5 rounded" />
+            </div>
           ) : (
             <p className="text-sm italic text-ink-soft">No transcript yet.</p>
           )}

@@ -67,3 +67,59 @@ input:-webkit-autofill:focus {
   -webkit-box-shadow: 0 0 0px 1000px var(--color-surface) inset;
   transition: background-color 9999s ease-in-out 0s;
 }
+
+/* A moving light-sweep for "this is actively processing" placeholders —
+   reads clearly in either theme since it's a gradient over the neutral
+   border color, not colored text against a background that can flip dark. */
+@keyframes shimmer-sweep {
+  0% {
+    background-position: 150% 0;
+  }
+  100% {
+    background-position: -50% 0;
+  }
+}
+.shimmer {
+  background-image: linear-gradient(
+    100deg,
+    var(--color-border) 35%,
+    color-mix(in srgb, var(--color-ink) 18%, transparent) 50%,
+    var(--color-border) 65%
+  );
+  background-size: 250% 100%;
+  animation: shimmer-sweep 1.8s ease-in-out infinite;
+}
+
+/* A one-shot brand-tinted sweep plus a small lift/fade-in — used the moment
+   a re-transcribe result actually lands, so the swap reads as a deliberate
+   reveal rather than a flat color flash. */
+@keyframes reveal-sweep {
+  0% {
+    background-position: 160% 0;
+  }
+  100% {
+    background-position: -60% 0;
+  }
+}
+@keyframes reveal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.reveal-flash {
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--color-brand-400) 45%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 250% 100%;
+  animation:
+    reveal-sweep 900ms ease-out,
+    reveal-rise 300ms ease-out;
+}

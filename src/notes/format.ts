@@ -66,3 +66,72 @@ export function filenameForUpload(blob: Blob, mimeType: string): string {
   if (blob instanceof File && blob.name) return blob.name
   return filenameForMimeType(mimeType)
 }
+
+export interface ExportRecord {
+  id: string
+  createdAt: string
+  durationMs: number | null
+  transcript: string | null
+}
+
+export type ExportFormat = 'txt' | 'csv' | 'json'
+
+const EXPORT_MIME_TYPES: Record<ExportFormat, string> = {
+  txt: 'text/plain',
+  csv: 'text/csv',
+  json: 'application/json',
+}
+
+function csvCell(value: string): string {
+  // Quote whenever the raw value could otherwise be misread as multiple
+  // cells or run past a line boundary; doubling embedded quotes is the
+  // standard CSV escape.
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+}
+
+/** Formats a batch of notes for export/download in the given format — newest-first order is the caller's responsibility. */
+export function formatNotesForExport(records: ExportRecord[], format: ExportFormat): string {
+  if (format === 'json') {
+    return JSON.stringify(
+      records.map((r) => ({
+        id: r.id,
+        created_at: r.createdAt,
+        duration_ms: r.durationMs,
+        transcript: r.transcript,
+      })),
+      null,
+      2,
+    )
+  }
+  if (format === 'csv') {
+    const rows = records.map((r) =>
+      [r.id, r.createdAt, r.durationMs ?? '', r.transcript ?? '']
+        .map((value) => csvCell(String(value)))
+        .join(','),
+    )
+    return ['id,created_at,duration_ms,transcript', ...rows].join('\n')
+  }
+  // Plain text — same shape as the bulk "Copy" action, one note per section.
+  return records
+    .map((r) => `${new Date(r.createdAt).toLocaleString()}\n${r.transcript ?? '(no transcript)'}`)
+    .join('\n\n---\n\n')
+}
+
+export function exportFilename(format: ExportFormat): string {
+  return `telonote-export-${new Date().toISOString().slice(0, 10)}.${format}`
+}
+
+export function downloadTextFile(filename: string, text: string, format: ExportFormat = 'txt') {
+  const blob = new Blob([text], { type: EXPORT_MIME_TYPES[format] })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  // Revoking synchronously, right after click(), can race the browser's own
+  // handling of the blob: URL and silently drop the download in some
+  // builds — give it a beat first.
+  setTimeout(() => URL.revokeObjectURL(url), 2000)
+}

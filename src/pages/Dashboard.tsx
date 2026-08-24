@@ -5,6 +5,8 @@ import { useSelection } from '../hooks/useSelection'
 import { useNotes } from '../notes/useNotes'
 import { fuzzySearch } from '../search/fuzzySearch'
 import { groupNotesByDay } from '../notes/groupByDay'
+import { downloadTextFile, exportFilename, formatNotesForExport } from '../notes/format'
+import type { ExportFormat } from '../notes/format'
 import type { ClientNote } from '../notes/types'
 import type { NoteSearchResult } from '../api/notes'
 import RecordButton from '../notes/RecordButton'
@@ -16,6 +18,7 @@ import LoadMoreButton from '../components/LoadMoreButton'
 import Button from '../components/Button'
 import SearchInput from '../components/SearchInput'
 import SelectionHeader from '../components/SelectionHeader'
+import ExportMenu from '../components/ExportMenu'
 
 type SearchMode = 'text' | 'meaning'
 
@@ -49,6 +52,8 @@ export default function Dashboard() {
     retranscribeNote,
     fetchAudioUrl,
     searchByMeaning,
+    exportAllNotes,
+    isExporting,
     quota,
   } = useNotes()
 
@@ -132,12 +137,50 @@ export default function Dashboard() {
     setTimeout(() => setCopyMessage(null), 4000)
   }
 
+  const handleBulkExport = (format: ExportFormat) => {
+    const ids = selection.selectedIds
+    const selected = notes.filter((note) => ids.has(note.id))
+    const text = formatNotesForExport(
+      selected.map((note) => ({
+        id: note.id,
+        createdAt: note.createdAt,
+        durationMs: note.durationMs,
+        transcript: note.finalTranscript ?? note.roughTranscript,
+      })),
+      format,
+    )
+    downloadTextFile(exportFilename(format), text, format)
+    selection.clear()
+    setIsSelecting(false)
+  }
+
+  const handleAudioExportComingSoon = () => {
+    setCopyMessage('Exporting with audio is coming soon — text export works today.')
+    setTimeout(() => setCopyMessage(null), 4000)
+  }
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col px-4 pb-24 sm:px-6 sm:pb-16">
       <RecordButton onComplete={uploadRecording} quota={quota} />
       <div className="mb-4 flex justify-center">
         <UploadAudioButton onUpload={uploadRecording} />
       </div>
+
+      {notes.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-ink-soft">
+          <ExportMenu
+            onExport={exportAllNotes}
+            disabled={isExporting}
+            triggerClassName="font-medium underline decoration-dotted disabled:opacity-60"
+          >
+            {isExporting ? 'Exporting…' : 'Export your notes'}
+          </ExportMenu>
+          <span aria-hidden="true">·</span>
+          <button type="button" onClick={handleAudioExportComingSoon} className="underline decoration-dotted">
+            With audio (coming soon)
+          </button>
+        </div>
+      )}
 
       {notes.length > 0 && (
         <div className="mb-4 flex gap-1 rounded-full bg-surface p-1">
@@ -244,16 +287,30 @@ export default function Dashboard() {
         </div>
       )}
 
-      {selection.count > 0 && (
+      {isSelecting && (
         <div className="mb-3">
           <BulkActionBar count={selection.count} onClear={selection.clear}>
-            <Button type="button" variant="secondary" className="!px-3 !py-1.5 !text-sm" onClick={handleBulkCopy}>
+            <Button
+              type="button"
+              variant="secondary"
+              className="!px-3 !py-1.5 !text-sm"
+              disabled={selection.count === 0}
+              onClick={handleBulkCopy}
+            >
               Copy
             </Button>
+            <ExportMenu
+              onExport={handleBulkExport}
+              disabled={selection.count === 0}
+              triggerClassName="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-sm font-medium text-ink transition-colors duration-150 hover:border-brand-300 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Export
+            </ExportMenu>
             <Button
               type="button"
               variant="secondary"
               className="!px-3 !py-1.5 !text-sm !text-red-600"
+              disabled={selection.count === 0}
               onClick={handleBulkDelete}
             >
               Delete

@@ -4,7 +4,8 @@ import * as notesApi from '../api/notes'
 import type { NoteDetail, NoteSummary } from '../api/notes'
 import { ApiError, NetworkError } from '../api/client'
 import type { QuotaInfo } from '../api/client'
-import { filenameForUpload } from './format'
+import { downloadTextFile, exportFilename, filenameForUpload, formatNotesForExport } from './format'
+import type { ExportFormat } from './format'
 import { MAX_AUDIO_BYTES } from './audioFileValidation'
 import type { ClientNote } from './types'
 
@@ -503,6 +504,45 @@ export function useNotes() {
     [callWithAuthRetry],
   )
 
+  const [isExporting, setIsExporting] = useState(false)
+
+  // Exports the user's whole history, not just whatever's been paginated
+  // into `notes` so far — loops /notes to completion independently of the
+  // main list's own pagination state.
+  const exportAllNotes = useCallback(async (format: ExportFormat) => {
+    setIsExporting(true)
+    try {
+      const all: NoteSummary[] = []
+      let offset = 0
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const page = await callWithAuthRetry((token) => notesApi.listNotes(token, { limit: PAGE_SIZE, offset }))
+        all.push(...page)
+        if (page.length < PAGE_SIZE) break
+        offset += page.length
+      }
+      const text = formatNotesForExport(
+        all.map((note) => ({
+          id: note.id,
+          createdAt: note.created_at,
+          durationMs: note.duration_ms,
+          transcript: note.final_transcript ?? note.rough_transcript,
+        })),
+        format,
+      )
+      downloadTextFile(exportFilename(format), text, format)
+      showBanner(`Exported ${all.length} note${all.length === 1 ? '' : 's'}.`)
+    } catch (error) {
+      showBanner(
+        error instanceof ApiError || error instanceof NetworkError
+          ? error.message
+          : "Couldn't export your notes.",
+      )
+    } finally {
+      setIsExporting(false)
+    }
+  }, [callWithAuthRetry, showBanner])
+
   return {
     notes,
     isLoadingInitial,
@@ -521,6 +561,8 @@ export function useNotes() {
     retranscribeNote,
     fetchAudioUrl,
     searchByMeaning,
+    exportAllNotes,
+    isExporting,
     quota,
   }
 }

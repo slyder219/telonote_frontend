@@ -187,12 +187,13 @@ export default function ContextPage() {
               }
             />
 
-            {itemSelection.count > 0 && (
+            {isSelectingItems && (
               <BulkActionBar count={itemSelection.count} onClear={itemSelection.clear}>
                 <Button
                   type="button"
                   variant="secondary"
                   className="!px-3 !py-1.5 !text-sm"
+                  disabled={itemSelection.count === 0}
                   onClick={() => handleBulkAlwaysInclude(true)}
                 >
                   Always include: On
@@ -201,6 +202,7 @@ export default function ContextPage() {
                   type="button"
                   variant="secondary"
                   className="!px-3 !py-1.5 !text-sm"
+                  disabled={itemSelection.count === 0}
                   onClick={() => handleBulkAlwaysInclude(false)}
                 >
                   Always include: Off
@@ -209,6 +211,7 @@ export default function ContextPage() {
                   type="button"
                   variant="secondary"
                   className="!px-3 !py-1.5 !text-sm !text-red-600"
+                  disabled={itemSelection.count === 0}
                   onClick={handleBulkDeleteItems}
                 >
                   Delete
@@ -271,15 +274,22 @@ export default function ContextPage() {
               }
             />
 
-            {candidateSelection.count > 0 && (
+            {isSelectingCandidates && (
               <BulkActionBar count={candidateSelection.count} onClear={candidateSelection.clear}>
-                <Button type="button" variant="primary" className="!px-3 !py-1.5 !text-sm" onClick={handleBulkCommit}>
+                <Button
+                  type="button"
+                  variant="primary"
+                  className="!px-3 !py-1.5 !text-sm"
+                  disabled={candidateSelection.count === 0}
+                  onClick={handleBulkCommit}
+                >
                   Commit
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
                   className="!px-3 !py-1.5 !text-sm"
+                  disabled={candidateSelection.count === 0}
                   onClick={handleBulkIgnore}
                 >
                   Ignore
