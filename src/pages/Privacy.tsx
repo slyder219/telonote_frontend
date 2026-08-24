@@ -94,7 +94,7 @@ export default function Privacy() {
       <h2 className={h2}>10. Contact</h2>
       <p className={p}>
         Questions about this policy, or want to exercise any of the rights above? Email{' '}
-        <a href="mailto:support@telonote.com" className="text-brand-600 underline">
+        <a href="mailto:support@telonote.com" className="text-brand-400 underline">
           support@telonote.com
         </a>
         .

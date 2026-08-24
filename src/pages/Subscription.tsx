@@ -105,7 +105,7 @@ export default function Subscription() {
   const expiresAt = formatDate(status?.subscription_expires_at ?? null)
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
+    <div className="mx-auto max-w-2xl px-4 pb-24 pt-12 sm:px-6 sm:pb-12">
       <h1 className="text-2xl font-semibold tracking-tight text-ink">Subscription</h1>
 
       {isLoading ? (

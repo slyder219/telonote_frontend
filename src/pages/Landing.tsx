@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import Button from '../components/Button'
+import ContextDemo from '../components/ContextDemo'
 
 const steps = [
   {
@@ -73,18 +74,31 @@ export default function Landing() {
       </section>
 
       <section className="border-t border-border bg-surface/60">
-        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 px-6 py-14 sm:grid-cols-2 lg:grid-cols-4">
-          {steps.map((step, index) => (
-            <div key={step.title} className="rounded-2xl border border-border bg-surface p-6">
-              <span className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600">
-                {index + 1}
-              </span>
-              <h2 className="text-base font-semibold text-ink">{step.title}</h2>
-              <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">{step.body}</p>
-            </div>
-          ))}
+        <div className="mx-auto max-w-5xl py-14">
+          {/* Mobile: a peeking, swipeable row so four steps don't dominate
+              the whole screen stacked vertically. Desktop: a plain grid. */}
+          <div
+            className="flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-2 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:pb-0 lg:grid-cols-4"
+            style={{ scrollbarWidth: 'none' }}
+          >
+            {steps.map((step, index) => (
+              <div
+                key={step.title}
+                className="w-[78%] shrink-0 snap-center rounded-2xl border border-border bg-surface p-6 sm:w-auto sm:shrink"
+              >
+                <span className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600">
+                  {index + 1}
+                </span>
+                <h2 className="text-base font-semibold text-ink">{step.title}</h2>
+                <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">{step.body}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-center text-xs text-ink-soft sm:hidden">Swipe to see all four →</p>
         </div>
       </section>
+
+      <ContextDemo />
     </div>
   )
 }

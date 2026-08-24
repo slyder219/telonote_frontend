@@ -46,7 +46,7 @@ export default function Terms() {
         Paid subscriptions renew automatically each billing period until cancelled. Payments are processed by
         Paddle.com Market Ltd ("Paddle"), acting as our authorized reseller and merchant of record — your purchase
         is also subject to{' '}
-        <a href="https://www.paddle.com" target="_blank" rel="noreferrer" className="text-brand-600 underline">
+        <a href="https://www.paddle.com" target="_blank" rel="noreferrer" className="text-brand-400 underline">
           Paddle's own buyer terms
         </a>
         . Because Paddle is the merchant of record, your payment method statement will show a charge from Paddle,
@@ -54,7 +54,7 @@ export default function Terms() {
       </p>
       <p className={p}>
         You can cancel your subscription at any time from your account settings. Cancelling stops future renewals;
-        see our <a href="/refunds" className="text-brand-600 underline">Refund Policy</a> for what happens to the
+        see our <a href="/refunds" className="text-brand-400 underline">Refund Policy</a> for what happens to the
         current billing period.
       </p>
 
@@ -110,7 +110,7 @@ export default function Terms() {
       <h2 className={h2}>10. Contact</h2>
       <p className={p}>
         Questions about these Terms? Email{' '}
-        <a href="mailto:support@telonote.com" className="text-brand-600 underline">
+        <a href="mailto:support@telonote.com" className="text-brand-400 underline">
           support@telonote.com
         </a>
         .

@@ -12,6 +12,7 @@ import BulkActionBar from '../components/BulkActionBar'
 import Button from '../components/Button'
 import LoadMoreButton from '../components/LoadMoreButton'
 import SearchInput from '../components/SearchInput'
+import SelectionHeader from '../components/SelectionHeader'
 
 type Tab = 'committed' | 'candidates'
 
@@ -30,32 +31,6 @@ function SkeletonCard() {
   )
 }
 
-function SelectAllRow({
-  total,
-  count,
-  onSelectAll,
-  onClear,
-}: {
-  total: number
-  count: number
-  onSelectAll: () => void
-  onClear: () => void
-}) {
-  if (total === 0) return null
-  const allSelected = count === total
-  return (
-    <label className="flex items-center gap-2 px-1 text-sm text-ink-soft">
-      <input
-        type="checkbox"
-        checked={allSelected}
-        onChange={() => (allSelected ? onClear() : onSelectAll())}
-        className="h-4 w-4 accent-brand-500"
-      />
-      Select all
-    </label>
-  )
-}
-
 export default function ContextPage() {
   usePageMeta('My Context — Telonote', { noindex: true })
   const [tab, setTab] = useState<Tab>('committed')
@@ -64,6 +39,8 @@ export default function ContextPage() {
   const candidatesState = useContextCandidates()
   const itemSelection = useSelection()
   const candidateSelection = useSelection()
+  const [isSelectingItems, setIsSelectingItems] = useState(false)
+  const [isSelectingCandidates, setIsSelectingCandidates] = useState(false)
   const [visibleItems, setVisibleItems] = useState(PAGE_SIZE)
   const [visibleCandidates, setVisibleCandidates] = useState(PAGE_SIZE)
   const [query, setQuery] = useState('')
@@ -112,6 +89,7 @@ export default function ContextPage() {
   const handleBulkCommit = async () => {
     const ids = [...candidateSelection.selectedIds]
     candidateSelection.clear()
+    setIsSelectingCandidates(false)
     await candidatesState.bulkCommit(ids)
     itemsState.refetch()
   }
@@ -119,6 +97,7 @@ export default function ContextPage() {
   const handleBulkIgnore = async () => {
     const ids = [...candidateSelection.selectedIds]
     candidateSelection.clear()
+    setIsSelectingCandidates(false)
     await candidatesState.bulkIgnore(ids)
   }
 
@@ -126,17 +105,19 @@ export default function ContextPage() {
     const ids = [...itemSelection.selectedIds]
     if (!window.confirm(`Delete ${ids.length} item${ids.length === 1 ? '' : 's'}? This can't be undone.`)) return
     itemSelection.clear()
+    setIsSelectingItems(false)
     await itemsState.bulkDelete(ids)
   }
 
   const handleBulkAlwaysInclude = async (value: boolean) => {
     const ids = [...itemSelection.selectedIds]
     itemSelection.clear()
+    setIsSelectingItems(false)
     await itemsState.bulkSetAlwaysInclude(ids, value)
   }
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col px-4 pb-16 pt-6 sm:px-6">
+    <div className="mx-auto flex max-w-2xl flex-col px-4 pb-24 pt-6 sm:px-6 sm:pb-16">
       <h1 className="text-xl font-semibold tracking-tight text-ink">My Context</h1>
       <p className="mt-1 text-sm text-ink-soft">
         The vocabulary Telonote uses to transcribe you more accurately.
@@ -190,11 +171,20 @@ export default function ContextPage() {
           <>
             <AddItemForm onAdd={itemsState.createItem} />
 
-            <SelectAllRow
+            <SelectionHeader
               total={filteredItems.length}
-              count={itemSelection.count}
-              onSelectAll={() => itemSelection.selectAll(filteredItems.map((i) => i.id))}
-              onClear={itemSelection.clear}
+              isSelecting={isSelectingItems}
+              onStartSelecting={() => setIsSelectingItems(true)}
+              onCancel={() => {
+                setIsSelectingItems(false)
+                itemSelection.clear()
+              }}
+              allSelected={itemSelection.count > 0 && itemSelection.count === filteredItems.length}
+              onToggleSelectAll={() =>
+                itemSelection.count === filteredItems.length
+                  ? itemSelection.clear()
+                  : itemSelection.selectAll(filteredItems.map((i) => i.id))
+              }
             />
 
             {itemSelection.count > 0 && (
@@ -254,6 +244,7 @@ export default function ContextPage() {
                     selected={itemSelection.isSelected(item.id)}
                     onToggleSelect={itemSelection.toggle}
                     searchQuery={query}
+                    isSelecting={isSelectingItems}
                   />
                 ))}
                 {!query.trim() && filteredItems.length > visibleItems && (
@@ -264,11 +255,20 @@ export default function ContextPage() {
           </>
         ) : (
           <>
-            <SelectAllRow
+            <SelectionHeader
               total={filteredCandidates.length}
-              count={candidateSelection.count}
-              onSelectAll={() => candidateSelection.selectAll(filteredCandidates.map((c) => c.id))}
-              onClear={candidateSelection.clear}
+              isSelecting={isSelectingCandidates}
+              onStartSelecting={() => setIsSelectingCandidates(true)}
+              onCancel={() => {
+                setIsSelectingCandidates(false)
+                candidateSelection.clear()
+              }}
+              allSelected={candidateSelection.count > 0 && candidateSelection.count === filteredCandidates.length}
+              onToggleSelectAll={() =>
+                candidateSelection.count === filteredCandidates.length
+                  ? candidateSelection.clear()
+                  : candidateSelection.selectAll(filteredCandidates.map((c) => c.id))
+              }
             />
 
             {candidateSelection.count > 0 && (
@@ -319,6 +319,7 @@ export default function ContextPage() {
                       selected={candidateSelection.isSelected(candidate.id)}
                       onToggleSelect={candidateSelection.toggle}
                       searchQuery={query}
+                      isSelecting={isSelectingCandidates}
                     />
                   ),
                 )}

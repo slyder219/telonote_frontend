@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import type { MouseEvent } from 'react'
 import Button from '../components/Button'
 import TextField from '../components/TextField'
 import Highlight from '../search/Highlight'
+import SelectionCircle from '../components/SelectionCircle'
 import type { ContextItem, UpdateContextItemInput } from '../api/context'
 
 function PencilIcon() {
@@ -33,9 +35,9 @@ function TrashIcon() {
 }
 
 const iconButtonClass =
-  'flex h-10 w-10 items-center justify-center rounded-full bg-paper text-ink transition-colors active:bg-border'
+  'flex h-8 w-10 items-center justify-center rounded-full bg-paper text-ink transition-colors active:bg-border'
 const dangerButtonClass =
-  'flex h-10 w-10 items-center justify-center rounded-full bg-paper text-ink transition-colors active:bg-red-500/15 active:text-red-500'
+  'flex h-8 w-10 items-center justify-center rounded-full bg-paper text-ink transition-colors active:bg-red-500/15 active:text-red-500'
 
 interface ContextItemCardProps {
   item: ContextItem
@@ -44,6 +46,7 @@ interface ContextItemCardProps {
   selected: boolean
   onToggleSelect: (id: string) => void
   searchQuery: string
+  isSelecting?: boolean
 }
 
 export default function ContextItemCard({
@@ -53,6 +56,7 @@ export default function ContextItemCard({
   selected,
   onToggleSelect,
   searchQuery,
+  isSelecting = false,
 }: ContextItemCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [term, setTerm] = useState(item.term)
@@ -95,17 +99,30 @@ export default function ContextItemCard({
     }
   }
 
+  const handleRowClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (!isSelecting || isEditing) return
+    if ((event.target as HTMLElement).closest('button, a, input, textarea, select')) return
+    onToggleSelect(item.id)
+  }
+
   return (
-    <div className="rounded-2xl border border-border bg-surface p-4">
+    <div
+      onClick={handleRowClick}
+      className={`rounded-2xl border border-border p-4 ${isSelecting ? 'cursor-pointer' : ''} ${
+        selected && isSelecting ? 'bg-brand-50/60' : 'bg-surface'
+      }`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-start gap-3">
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={() => onToggleSelect(item.id)}
-            aria-label={`Select ${item.term}`}
-            className="mt-1 h-4 w-4 shrink-0 accent-brand-500"
-          />
+          {isSelecting && (
+            <div className="mt-1">
+              <SelectionCircle
+                selected={selected}
+                onToggle={() => onToggleSelect(item.id)}
+                label={`Select ${item.term}`}
+              />
+            </div>
+          )}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-ink">
@@ -130,7 +147,7 @@ export default function ContextItemCard({
           </div>
         </div>
 
-        {!isEditing && (
+        {!isEditing && !isSelecting && (
           <div className="flex shrink-0 items-center gap-2">
             <button type="button" onClick={startEdit} aria-label="Edit item" className={iconButtonClass}>
               <PencilIcon />

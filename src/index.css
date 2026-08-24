@@ -28,6 +28,16 @@
     --color-paper: #232326;
     --color-surface: #333438;
     --color-border: rgba(233, 233, 230, 0.12);
+
+    /* brand-400 is the one shade from the brand scale used as plain text
+       directly on the page background (links, active nav state, status
+       text) rather than inside a fixed-light chip — the rest of the scale
+       stays as-is since it's only ever used for solid fills or on top of
+       bg-brand-50, which doesn't change in dark mode. Light-mode brand-400
+       (#4f7684) is too close to the dark paper/surface to read; this
+       reuses light-mode's brand-300 value, which has enough contrast
+       against a dark background while keeping the same hue. */
+    --color-brand-400: #8aabb5;
   }
 }
 

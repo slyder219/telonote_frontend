@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import type { MouseEvent } from 'react'
 import Button from '../components/Button'
 import TextField from '../components/TextField'
 import Highlight from '../search/Highlight'
+import SelectionCircle from '../components/SelectionCircle'
 import type { ContextCandidate, ContextItem, UpdateCandidateInput } from '../api/context'
 
 function PencilIcon() {
@@ -27,7 +29,7 @@ function CheckIcon() {
 }
 
 const iconButtonClass =
-  'flex h-10 w-10 items-center justify-center rounded-full bg-paper text-ink transition-colors active:bg-border'
+  'flex h-8 w-10 items-center justify-center rounded-full bg-paper text-ink transition-colors active:bg-border'
 
 interface CandidateCardProps {
   candidate: ContextCandidate
@@ -39,6 +41,7 @@ interface CandidateCardProps {
   selected: boolean
   onToggleSelect: (id: string) => void
   searchQuery: string
+  isSelecting?: boolean
 }
 
 export default function CandidateCard({
@@ -51,6 +54,7 @@ export default function CandidateCard({
   selected,
   onToggleSelect,
   searchQuery,
+  isSelecting = false,
 }: CandidateCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [term, setTerm] = useState(candidate.proposed_term)
@@ -92,17 +96,30 @@ export default function CandidateCard({
     setIsMerging(false)
   }
 
+  const handleRowClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (!isSelecting || isEditing || isMerging) return
+    if ((event.target as HTMLElement).closest('button, a, input, textarea, select')) return
+    onToggleSelect(candidate.id)
+  }
+
   return (
-    <div className="rounded-2xl border border-border bg-surface p-4">
+    <div
+      onClick={handleRowClick}
+      className={`rounded-2xl border border-border p-4 ${isSelecting ? 'cursor-pointer' : ''} ${
+        selected && isSelecting ? 'bg-brand-50/60' : 'bg-surface'
+      }`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-start gap-3">
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={() => onToggleSelect(candidate.id)}
-            aria-label={`Select ${candidate.proposed_term}`}
-            className="mt-1 h-4 w-4 shrink-0 accent-brand-500"
-          />
+          {isSelecting && (
+            <div className="mt-1">
+              <SelectionCircle
+                selected={selected}
+                onToggle={() => onToggleSelect(candidate.id)}
+                label={`Select ${candidate.proposed_term}`}
+              />
+            </div>
+          )}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-ink">
@@ -122,7 +139,7 @@ export default function CandidateCard({
           </div>
         </div>
 
-        {!isEditing && (
+        {!isEditing && !isSelecting && (
           <button type="button" onClick={startEdit} aria-label="Edit candidate" className={iconButtonClass}>
             <PencilIcon />
           </button>

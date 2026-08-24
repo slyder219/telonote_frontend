@@ -15,6 +15,7 @@ import BulkActionBar from '../components/BulkActionBar'
 import LoadMoreButton from '../components/LoadMoreButton'
 import Button from '../components/Button'
 import SearchInput from '../components/SearchInput'
+import SelectionHeader from '../components/SelectionHeader'
 
 type SearchMode = 'text' | 'meaning'
 
@@ -55,6 +56,7 @@ export default function Dashboard() {
   const [query, setQuery] = useState('')
   const [copyMessage, setCopyMessage] = useState<string | null>(null)
   const selection = useSelection()
+  const [isSelecting, setIsSelecting] = useState(false)
 
   const [meaningQuery, setMeaningQuery] = useState('')
   const [meaningResults, setMeaningResults] = useState<NoteSearchResult[] | null>(null)
@@ -106,6 +108,7 @@ export default function Dashboard() {
     const ids = [...selection.selectedIds]
     if (!window.confirm(`Delete ${ids.length} note${ids.length === 1 ? '' : 's'}? This can't be undone.`)) return
     selection.clear()
+    setIsSelecting(false)
     await bulkDeleteNotes(ids)
   }
 
@@ -121,6 +124,7 @@ export default function Dashboard() {
     try {
       await navigator.clipboard.writeText(text)
       selection.clear()
+      setIsSelecting(false)
       setCopyMessage(`Copied ${selected.length} note${selected.length === 1 ? '' : 's'} to clipboard.`)
     } catch {
       setCopyMessage("Couldn't copy to clipboard. Check your browser's clipboard permission.")
@@ -129,7 +133,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col px-4 pb-16 sm:px-6">
+    <div className="mx-auto flex max-w-2xl flex-col px-4 pb-24 sm:px-6 sm:pb-16">
       <RecordButton onComplete={uploadRecording} quota={quota} />
       <div className="mb-4 flex justify-center">
         <UploadAudioButton onUpload={uploadRecording} />
@@ -221,19 +225,23 @@ export default function Dashboard() {
       )}
 
       {(searchMode === 'text' ? notes.length > 0 : displayedNotes.length > 0) && (
-        <label className="mb-3 flex items-center gap-2 px-1 text-sm text-ink-soft">
-          <input
-            type="checkbox"
-            checked={selection.count > 0 && selection.count === displayedNotes.length}
-            onChange={() =>
+        <div className="mb-3">
+          <SelectionHeader
+            total={displayedNotes.length}
+            isSelecting={isSelecting}
+            onStartSelecting={() => setIsSelecting(true)}
+            onCancel={() => {
+              setIsSelecting(false)
+              selection.clear()
+            }}
+            allSelected={selection.count > 0 && selection.count === displayedNotes.length}
+            onToggleSelectAll={() =>
               selection.count === displayedNotes.length
                 ? selection.clear()
                 : selection.selectAll(displayedNotes.map((n) => n.id))
             }
-            className="h-4 w-4 accent-brand-500"
           />
-          Select all
-        </label>
+        </div>
       )}
 
       {selection.count > 0 && (
@@ -292,6 +300,7 @@ export default function Dashboard() {
                     onToggleSelect={selection.toggle}
                     searchQuery={query}
                     quota={quota}
+                    isSelecting={isSelecting}
                   />
                 ))}
               </div>
@@ -312,6 +321,7 @@ export default function Dashboard() {
               onToggleSelect={selection.toggle}
               searchQuery=""
               quota={quota}
+              isSelecting={isSelecting}
             />
           ))
         )}

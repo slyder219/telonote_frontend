@@ -54,7 +54,7 @@ export default function Pricing() {
       <p className="mt-6 text-xs leading-relaxed text-ink-soft">
         Pricing shown here is subject to change — the price displayed at checkout at the time you subscribe is
         authoritative. Payments are processed by Paddle, our merchant of record. See our{' '}
-        <Link to="/refunds" className="text-brand-600 underline">
+        <Link to="/refunds" className="text-brand-400 underline">
           Refund Policy
         </Link>{' '}
         for cancellations and refunds.
