@@ -39,8 +39,8 @@ export default function Refunds() {
       <h2 className={h2}>How to Request a Refund</h2>
       <p className={p}>
         Email{' '}
-        <a href="mailto:support@telonote.com" className="text-brand-400 underline">
-          support@telonote.com
+        <a href="mailto:telonote@truepeak.us" className="text-brand-400 underline">
+          telonote@truepeak.us
         </a>{' '}
         with your order or receipt ID (from your Paddle confirmation email) and a brief description of why you're
         requesting a refund. We aim to respond within a few business days.
@@ -63,8 +63,8 @@ export default function Refunds() {
       <h2 className={h2}>Contact</h2>
       <p className={p}>
         Questions about billing or refunds? Email{' '}
-        <a href="mailto:support@telonote.com" className="text-brand-400 underline">
-          support@telonote.com
+        <a href="mailto:telonote@truepeak.us" className="text-brand-400 underline">
+          telonote@truepeak.us
         </a>
         .
       </p>

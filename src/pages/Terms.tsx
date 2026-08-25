@@ -110,8 +110,8 @@ export default function Terms() {
       <h2 className={h2}>10. Contact</h2>
       <p className={p}>
         Questions about these Terms? Email{' '}
-        <a href="mailto:support@telonote.com" className="text-brand-400 underline">
-          support@telonote.com
+        <a href="mailto:telonote@truepeak.us" className="text-brand-400 underline">
+          telonote@truepeak.us
         </a>
         .
       </p>

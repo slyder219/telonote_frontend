@@ -22,8 +22,8 @@ export default function Footer() {
           <Link to="/refunds" className="hover:text-ink">
             Refund Policy
           </Link>
-          <a href="mailto:support@telonote.com" className="hover:text-ink">
-            support@telonote.com
+          <a href="mailto:telonote@truepeak.us" className="hover:text-ink">
+            telonote@truepeak.us
           </a>
         </nav>
         <p className="text-xs text-ink-soft">© {new Date().getFullYear()} Telonote</p>
