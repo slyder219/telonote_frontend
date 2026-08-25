@@ -139,6 +139,11 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   return (await response.json()) as T
 }
 
+/** Best-effort request used only to start a cold backend before the user needs it. */
+export function warmBackend(): void {
+  void fetchWithFallback('/health', { withCredentials: false }).catch(() => undefined)
+}
+
 export async function apiFetchBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
   const response = await fetchWithFallback(path, options)
   return response.blob()
