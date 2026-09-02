@@ -5,8 +5,9 @@ interface SelectionCircleProps {
 }
 
 // The iOS list-selection affordance: an empty ring that fills solid with a
-// checkmark once selected, instead of a browser-native checkbox — only ever
-// rendered once the list has been put into selection mode.
+// checkmark once selected, instead of a browser-native checkbox. Used both
+// for bulk-select mode and, generically, anywhere else a single boolean
+// needs this exact tap-to-toggle idiom (e.g. a note's completed flag).
 export default function SelectionCircle({ selected, onToggle, label }: SelectionCircleProps) {
   return (
     <button

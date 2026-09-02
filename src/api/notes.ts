@@ -1,11 +1,16 @@
 import { apiFetch, apiFetchBlob, apiFetchWithQuota } from './client'
 
+export type NoteColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'pink'
+export const NOTE_COLORS: NoteColor[] = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink']
+
 export interface NoteSummary {
   id: string
   created_at: string
   duration_ms: number | null
   rough_transcript: string | null
   final_transcript: string | null
+  color: NoteColor | null
+  completed: boolean
 }
 
 export interface NoteDetail extends NoteSummary {
@@ -49,6 +54,20 @@ export function updateNoteTranscript(id: string, finalTranscript: string, access
   return apiFetch<NoteDetail>(`/notes/${id}`, {
     method: 'PATCH',
     body: { final_transcript: finalTranscript },
+    accessToken,
+    withCredentials: false,
+  })
+}
+
+/** Partial update — only send the field(s) actually changing. */
+export function updateNoteAppearance(
+  id: string,
+  updates: { color?: NoteColor | null; completed?: boolean },
+  accessToken: string,
+) {
+  return apiFetch<NoteDetail>(`/notes/${id}/appearance`, {
+    method: 'PATCH',
+    body: updates,
     accessToken,
     withCredentials: false,
   })

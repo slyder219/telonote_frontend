@@ -4,10 +4,12 @@ import { formatDuration, formatTimeOfDay } from './format'
 import Button from '../components/Button'
 import SwipeableRow from '../components/SwipeableRow'
 import SelectionCircle from '../components/SelectionCircle'
+import ColorSwatchPicker from '../components/ColorSwatchPicker'
 import AudioScrubber from './AudioScrubber'
 import Highlight from '../search/Highlight'
 import type { ClientNote } from './types'
 import type { QuotaInfo } from '../api/client'
+import type { NoteColor } from '../api/notes'
 
 function PlayIcon() {
   return (
@@ -121,6 +123,43 @@ function DotsIcon() {
   )
 }
 
+// Literal class-per-color maps, not template-built strings — see
+// ColorSwatchPicker.tsx for why (Tailwind's build-time class scanner).
+const COLOR_WASH_CLASSES: Record<NoteColor, string> = {
+  red: 'bg-red-500/10',
+  orange: 'bg-orange-500/10',
+  yellow: 'bg-yellow-500/10',
+  green: 'bg-green-500/10',
+  blue: 'bg-blue-500/10',
+  purple: 'bg-purple-500/10',
+  pink: 'bg-pink-500/10',
+}
+const COLOR_DOT_CLASSES: Record<NoteColor, string> = {
+  red: 'text-red-500',
+  orange: 'text-orange-500',
+  yellow: 'text-yellow-500',
+  green: 'text-green-500',
+  blue: 'text-blue-500',
+  purple: 'text-purple-500',
+  pink: 'text-pink-500',
+}
+
+function ColorDotIcon({ color }: { color: NoteColor | null }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+      <circle
+        cx="12"
+        cy="12"
+        r="8"
+        fill={color ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth="1.8"
+        className={color ? COLOR_DOT_CLASSES[color] : 'text-ink-soft'}
+      />
+    </svg>
+  )
+}
+
 function extensionForBlobType(type: string): string {
   if (type.includes('mp4')) return 'm4a'
   if (type.includes('webm')) return 'webm'
@@ -149,6 +188,8 @@ interface NoteCardProps {
   onDiscardUpload?: (id: string) => void
   onRequestAudio: (id: string) => Promise<string>
   onRetranscribe?: (id: string) => void
+  onSetColor?: (id: string, color: NoteColor | null) => void
+  onToggleCompleted?: (id: string) => void
   selected?: boolean
   onToggleSelect?: (id: string) => void
   searchQuery: string
@@ -164,6 +205,8 @@ export default function NoteCard({
   onDiscardUpload,
   onRequestAudio,
   onRetranscribe,
+  onSetColor,
+  onToggleCompleted,
   selected = false,
   onToggleSelect,
   searchQuery,
@@ -176,6 +219,7 @@ export default function NoteCard({
   const [isLoadingAudio, setIsLoadingAudio] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isActionsExpanded, setIsActionsExpanded] = useState(false)
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false)
   const [inlineError, setInlineError] = useState('')
   const [justCopied, setJustCopied] = useState(false)
   const [justUpdated, setJustUpdated] = useState(false)
@@ -189,6 +233,17 @@ export default function NoteCard({
   const hasRealId = note.status === 'ready' || note.status === 'processing'
   const canPlay = hasRealId || Boolean(note.localAudioUrl)
   const isQuotaExhausted = quota !== null && quota.remainingBytes <= 0
+  // Mutually exclusive by construction, never combined: selection tint wins
+  // over the completed "greyish" wash, which wins over the note's own
+  // color — so completing a colored note visibly overrides its color.
+  const rowBgClass =
+    selected && isSelecting
+      ? 'bg-brand-50/60'
+      : note.completed
+        ? 'bg-ink-soft/10'
+        : note.color
+          ? COLOR_WASH_CLASSES[note.color]
+          : ''
   // Retranscribing an already-transcribed note reuses the 'processing'
   // status too, but here there's old text still on screen — treat that
   // case as "updating this text" rather than the empty "no transcript yet".
@@ -315,10 +370,7 @@ export default function NoteCard({
       onEdit={hasRealId ? startEdit : undefined}
       disabled={isSelecting}
     >
-      <div
-        onClick={handleRowClick}
-        className={`p-4 ${isSelecting ? 'cursor-pointer' : ''} ${selected && isSelecting ? 'bg-brand-50/60' : ''}`}
-      >
+      <div onClick={handleRowClick} className={`p-4 ${isSelecting ? 'cursor-pointer' : ''} ${rowBgClass}`}>
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-soft">
             {isSelecting && (
@@ -366,6 +418,13 @@ export default function NoteCard({
                     {isLoadingAudio ? <SpinnerIcon /> : isPlaying ? <PauseIcon /> : <PlayIcon />}
                   </button>
                 )}
+                {hasRealId && (
+                  <SelectionCircle
+                    selected={note.completed}
+                    onToggle={() => onToggleCompleted?.(note.id)}
+                    label={note.completed ? 'Mark note not completed' : 'Mark note completed'}
+                  />
+                )}
                 {hasRealId && transcript && (
                   <button type="button" onClick={handleCopy} aria-label="Copy transcript" className={iconButtonClass}>
                     {justCopied ? <CheckIcon /> : <CopyIcon />}
@@ -394,6 +453,17 @@ export default function NoteCard({
                     className={`${iconButtonClass} disabled:cursor-not-allowed disabled:opacity-40 disabled:active:bg-paper`}
                   >
                     <RefreshIcon />
+                  </button>
+                )}
+                {hasRealId && (
+                  <button
+                    type="button"
+                    onClick={() => setIsColorPickerOpen((open) => !open)}
+                    aria-label="Set note color"
+                    aria-expanded={isColorPickerOpen}
+                    className={iconButtonClass}
+                  >
+                    <ColorDotIcon color={note.color} />
                   </button>
                 )}
                 {hasRealId && (
@@ -428,6 +498,13 @@ export default function NoteCard({
                     {isLoadingAudio ? <SpinnerIcon /> : isPlaying ? <PauseIcon /> : <PlayIcon />}
                   </button>
                 )}
+                {hasRealId && (
+                  <SelectionCircle
+                    selected={note.completed}
+                    onToggle={() => onToggleCompleted?.(note.id)}
+                    label={note.completed ? 'Mark note not completed' : 'Mark note completed'}
+                  />
+                )}
                 {/* This wrapper sits before the "⋯" toggle so the reveal
                     grows out of its left rather than pushing the toggle
                     itself sideways — the toggle stays put either way since
@@ -435,7 +512,7 @@ export default function NoteCard({
                 {hasRealId && (
                   <div
                     className="shrink-0 overflow-hidden transition-[max-width] duration-300 ease-out"
-                    style={{ maxWidth: isActionsExpanded ? 260 : 0 }}
+                    style={{ maxWidth: isActionsExpanded ? 310 : 0 }}
                   >
                     <div className="flex items-center gap-2 pr-2">
                       {transcript && (
@@ -473,6 +550,15 @@ export default function NoteCard({
                       </button>
                       <button
                         type="button"
+                        onClick={() => setIsColorPickerOpen((open) => !open)}
+                        aria-label="Set note color"
+                        aria-expanded={isColorPickerOpen}
+                        className={`${iconButtonClass} shrink-0`}
+                      >
+                        <ColorDotIcon color={note.color} />
+                      </button>
+                      <button
+                        type="button"
                         onClick={startEdit}
                         aria-label="Edit transcript"
                         className={`${iconButtonClass} shrink-0`}
@@ -505,6 +591,16 @@ export default function NoteCard({
             </>
           )}
         </div>
+
+        {isColorPickerOpen && (
+          <ColorSwatchPicker
+            value={note.color}
+            onChange={(color) => {
+              onSetColor?.(note.id, color)
+              setIsColorPickerOpen(false)
+            }}
+          />
+        )}
 
         {inlineError && <p className="mt-1 text-right text-xs text-red-500">{inlineError}</p>}
 
@@ -576,9 +672,9 @@ export default function NoteCard({
                 </p>
               )}
               <p
-                className={`whitespace-pre-wrap rounded-lg text-[15px] leading-relaxed text-ink transition-opacity duration-700 ${
-                  isRetranscribingNow ? 'opacity-50' : ''
-                } ${justUpdated ? 'reveal-flash' : ''}`}
+                className={`whitespace-pre-wrap rounded-lg text-[15px] leading-relaxed transition-opacity duration-700 ${
+                  note.completed ? 'text-ink-soft' : 'text-ink'
+                } ${isRetranscribingNow ? 'opacity-50' : ''} ${justUpdated ? 'reveal-flash' : ''}`}
               >
                 <Highlight text={transcript} query={searchQuery} />
               </p>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuthenticatedRequest } from '../auth/useAuthenticatedRequest'
 import * as notesApi from '../api/notes'
-import type { NoteDetail, NoteSummary } from '../api/notes'
+import type { NoteColor, NoteDetail, NoteSummary } from '../api/notes'
 import { ApiError, NetworkError } from '../api/client'
 import type { QuotaInfo } from '../api/client'
 import { downloadTextFile, exportFilename, filenameForUpload, formatNotesForExport } from './format'
@@ -26,6 +26,8 @@ export function toClientNote(summary: NoteSummary): ClientNote {
     roughTranscript: summary.rough_transcript,
     finalTranscript: summary.final_transcript,
     status: 'ready',
+    color: summary.color,
+    completed: summary.completed,
   }
 }
 
@@ -200,6 +202,8 @@ export function useNotes() {
         roughTranscript: null,
         finalTranscript: null,
         status: 'uploading',
+        color: null,
+        completed: false,
         localAudioUrl: localUrl,
       }
       setNotes((current) => [optimisticNote, ...current])
@@ -238,6 +242,8 @@ export function useNotes() {
                   roughTranscript: created.rough_transcript,
                   finalTranscript: created.final_transcript,
                   status: unprocessed ? 'processing' : 'ready',
+                  color: created.color,
+                  completed: created.completed,
                   localAudioUrl: localUrl,
                 }
               : note,
@@ -289,6 +295,8 @@ export function useNotes() {
                     roughTranscript: created.rough_transcript,
                     finalTranscript: created.final_transcript,
                     status: unprocessed ? 'processing' : 'ready',
+                    color: created.color,
+                    completed: created.completed,
                     localAudioUrl: localUrl,
                   }
                 : n,
@@ -350,6 +358,64 @@ export function useNotes() {
           ),
         )
         showBanner("Couldn't save your edit — reverted.")
+      }
+    },
+    [callWithAuthRetry, showBanner],
+  )
+
+  const updateNoteColor = useCallback(
+    async (id: string, color: NoteColor | null) => {
+      let previous: NoteColor | null = null
+      setNotes((current) =>
+        current.map((note) => {
+          if (note.id !== id) return note
+          previous = note.color
+          return { ...note, color }
+        }),
+      )
+
+      try {
+        const updated = await callWithAuthRetry((token) =>
+          notesApi.updateNoteAppearance(id, { color }, token),
+        )
+        setNotes((current) =>
+          current.map((note) => (note.id === id ? { ...note, color: updated.color } : note)),
+        )
+      } catch {
+        setNotes((current) =>
+          current.map((note) => (note.id === id ? { ...note, color: previous } : note)),
+        )
+        showBanner("Couldn't update note color — reverted.")
+      }
+    },
+    [callWithAuthRetry, showBanner],
+  )
+
+  const toggleNoteCompleted = useCallback(
+    async (id: string) => {
+      let previous = false
+      let next = false
+      setNotes((current) =>
+        current.map((note) => {
+          if (note.id !== id) return note
+          previous = note.completed
+          next = !note.completed
+          return { ...note, completed: next }
+        }),
+      )
+
+      try {
+        const updated = await callWithAuthRetry((token) =>
+          notesApi.updateNoteAppearance(id, { completed: next }, token),
+        )
+        setNotes((current) =>
+          current.map((note) => (note.id === id ? { ...note, completed: updated.completed } : note)),
+        )
+      } catch {
+        setNotes((current) =>
+          current.map((note) => (note.id === id ? { ...note, completed: previous } : note)),
+        )
+        showBanner("Couldn't update note — reverted.")
       }
     },
     [callWithAuthRetry, showBanner],
@@ -556,6 +622,8 @@ export function useNotes() {
     retryUpload,
     discardUpload,
     editTranscript,
+    updateNoteColor,
+    toggleNoteCompleted,
     deleteNoteById,
     bulkDeleteNotes,
     retranscribeNote,

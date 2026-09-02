@@ -47,6 +47,8 @@ export default function Dashboard() {
     retryUpload,
     discardUpload,
     editTranscript,
+    updateNoteColor,
+    toggleNoteCompleted,
     deleteNoteById,
     bulkDeleteNotes,
     retranscribeNote,
@@ -353,6 +355,8 @@ export default function Dashboard() {
                     onDiscardUpload={discardUpload}
                     onRequestAudio={fetchAudioUrl}
                     onRetranscribe={retranscribeNote}
+                    onSetColor={updateNoteColor}
+                    onToggleCompleted={toggleNoteCompleted}
                     selected={selection.isSelected(note.id)}
                     onToggleSelect={selection.toggle}
                     searchQuery={query}
@@ -374,6 +378,8 @@ export default function Dashboard() {
               onDiscardUpload={discardUpload}
               onRequestAudio={fetchAudioUrl}
               onRetranscribe={retranscribeNote}
+              onSetColor={updateNoteColor}
+              onToggleCompleted={toggleNoteCompleted}
               selected={selection.isSelected(note.id)}
               onToggleSelect={selection.toggle}
               searchQuery=""
