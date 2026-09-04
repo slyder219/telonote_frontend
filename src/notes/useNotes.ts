@@ -393,16 +393,11 @@ export function useNotes() {
 
   const toggleNoteCompleted = useCallback(
     async (id: string) => {
-      let previous = false
-      let next = false
-      setNotes((current) =>
-        current.map((note) => {
-          if (note.id !== id) return note
-          previous = note.completed
-          next = !note.completed
-          return { ...note, completed: next }
-        }),
-      )
+      const target = notes.find((note) => note.id === id)
+      if (!target) return
+      const previous = target.completed
+      const next = !previous
+      setNotes((current) => current.map((note) => (note.id === id ? { ...note, completed: next } : note)))
 
       try {
         const updated = await callWithAuthRetry((token) =>
@@ -418,7 +413,7 @@ export function useNotes() {
         showBanner("Couldn't update note — reverted.")
       }
     },
-    [callWithAuthRetry, showBanner],
+    [notes, callWithAuthRetry, showBanner],
   )
 
   const deleteNoteById = useCallback(

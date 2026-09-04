@@ -1,6 +1,6 @@
-// Mirrors API.md's accepted list: mp3, m4a/aac, ogg, webm, opus, 3gp, amr, mp4.
+// Mirrors API.md's accepted list: mp3, m4a/aac, ogg, webm, opus, 3gp, amr, mp4, caf.
 // Uncompressed formats are explicitly rejected there too.
-const ACCEPTED_EXTENSIONS = ['mp3', 'm4a', 'aac', 'ogg', 'webm', 'opus', '3gp', 'amr', 'mp4']
+const ACCEPTED_EXTENSIONS = ['mp3', 'm4a', 'aac', 'ogg', 'webm', 'opus', '3gp', 'amr', 'mp4', 'caf']
 const REJECTED_EXTENSIONS = ['wav', 'aiff', 'aif', 'flac', 'pcm']
 
 // Hard ceiling from OpenAI's transcription API (25MB) — see API.md.

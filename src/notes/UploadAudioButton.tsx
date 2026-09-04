@@ -95,7 +95,7 @@ export default function UploadAudioButton({ onUpload }: UploadAudioButtonProps) 
         // Listing every extension explicitly, accepted and transcodable
         // alike, works around that; our own JS validation is the real
         // gatekeeper regardless of what this lets through.
-        accept="audio/*,.mp3,.m4a,.aac,.ogg,.webm,.opus,.3gp,.amr,.mp4,.wav,.aiff,.aif,.flac"
+        accept="audio/*,.mp3,.m4a,.aac,.ogg,.webm,.opus,.3gp,.amr,.mp4,.caf,.wav,.aiff,.aif,.flac"
         onChange={handleChange}
         className="hidden"
       />
