@@ -37,6 +37,13 @@ export function signout() {
   return apiFetch<void>('/auth/signout', { method: 'POST' })
 }
 
+export function changePassword(currentPassword: string, newPassword: string) {
+  return apiFetch<void>('/auth/change-password', {
+    method: 'POST',
+    body: { current_password: currentPassword, new_password: newPassword },
+  })
+}
+
 export function me(accessToken: string) {
   return apiFetch<User>('/auth/me', { accessToken, withCredentials: false })
 }

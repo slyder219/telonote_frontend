@@ -48,6 +48,15 @@ function PlanIcon() {
   )
 }
 
+function AccountIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M4.5 20c1.4-3.6 4.4-5.5 7.5-5.5s6.1 1.9 7.5 5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-2.5 py-2 text-sm font-medium transition-colors ${
     isActive ? 'bg-brand-50 text-brand-600' : 'text-ink-soft hover:text-ink'
@@ -58,7 +67,7 @@ const tabLinkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'text-brand-400' : 'text-ink-soft'
   }`
 
-const APP_ROUTES = ['/dashboard', '/context', '/subscription']
+const APP_ROUTES = ['/dashboard', '/context', '/subscription', '/account']
 
 export default function Navbar() {
   const { isAuthenticated, isLoading, logout } = useAuth()
@@ -86,21 +95,39 @@ export default function Navbar() {
                 <NavLink to="/subscription" className={navLinkClass}>
                   Subscription
                 </NavLink>
+                <NavLink to="/account" className={navLinkClass}>
+                  Account
+                </NavLink>
                 <Button variant="secondary" className="!px-3.5 !py-2 !text-sm" onClick={logout}>
                   Log out
                 </Button>
               </div>
               {/* Mobile: primary nav lives in the bottom tab bar instead —
                   fitting "Dashboard" / "My Context" / "Subscription" pills
-                  plus Log out into one top row doesn't fit without wrapping. */}
-              <button
-                type="button"
-                onClick={logout}
-                aria-label="Log out"
-                className="flex h-10 w-10 items-center justify-center rounded-full text-ink-soft transition-colors active:bg-surface sm:hidden"
-              >
-                <LogoutIcon />
-              </button>
+                  plus Log out into one top row doesn't fit without wrapping.
+                  Account is secondary, so it only gets a top-bar icon here
+                  rather than a bottom tab slot. */}
+              <div className="flex items-center gap-1 sm:hidden">
+                <NavLink
+                  to="/account"
+                  aria-label="Account"
+                  className={({ isActive }) =>
+                    `flex h-10 w-10 items-center justify-center rounded-full transition-colors active:bg-surface ${
+                      isActive ? 'text-brand-600' : 'text-ink-soft'
+                    }`
+                  }
+                >
+                  <AccountIcon />
+                </NavLink>
+                <button
+                  type="button"
+                  onClick={logout}
+                  aria-label="Log out"
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-ink-soft transition-colors active:bg-surface"
+                >
+                  <LogoutIcon />
+                </button>
+              </div>
             </>
           ) : (
             <div className="flex items-center gap-2">
