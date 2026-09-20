@@ -593,7 +593,7 @@ export default function NoteCard({
           </div>
         )}
 
-        {inlineError && <p className="mt-1 text-right text-xs text-red-700 dark:text-red-300">{inlineError}</p>}
+        {inlineError && <p className="mt-1 text-right text-xs text-danger">{inlineError}</p>}
 
         {note.localAudioUrl && (
           <>

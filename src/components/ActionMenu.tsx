@@ -186,7 +186,7 @@ export default function ActionMenu({ items, label, renderTrigger, align = 'end' 
                 onClick={() => handleSelect(item)}
                 className={`flex min-h-11 w-full items-center justify-between gap-4 px-4 py-2 text-left text-[15px] transition-colors hover:bg-ink/5 focus-visible:bg-ink/10 focus-visible:outline-offset-[-2px] active:bg-ink/10 disabled:opacity-40 disabled:hover:bg-transparent ${
                   index > 0 ? 'border-t border-border' : ''
-                } ${item.destructive ? 'text-red-700 dark:text-red-300' : ''}`}
+                } ${item.destructive ? 'text-danger' : ''}`}
               >
                 <span className="min-w-0">
                   {item.label}

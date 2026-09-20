@@ -309,7 +309,7 @@ export default function Dashboard() {
       )}
 
       {searchMode === 'meaning' && meaningError && (
-        <div className="mb-4 rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-center text-sm text-red-700 dark:text-red-300">
+        <div className="mb-4 rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-center text-sm text-danger">
           {meaningError}
         </div>
       )}
@@ -391,7 +391,7 @@ export default function Dashboard() {
             <Button
               type="button"
               variant="secondary"
-              className="!px-3 !py-1.5 !text-sm !text-red-700 dark:!text-red-300"
+              className="!px-3 !py-1.5 !text-sm !text-danger"
               disabled={selection.count === 0}
               onClick={handleBulkDelete}
             >
@@ -409,7 +409,7 @@ export default function Dashboard() {
             <SkeletonCard />
           </div>
         ) : loadError ? (
-          <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-center text-sm text-red-700 dark:text-red-300">
+          <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-center text-sm text-danger">
             {loadError}
           </div>
         ) : notes.length === 0 ? (
