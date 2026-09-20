@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import Button from '../components/Button'
 import ContextDemo from '../components/ContextDemo'
+import Features from '../components/Features'
 
 const steps = [
   {
@@ -18,7 +19,7 @@ const steps = [
   },
   {
     title: 'Organize',
-    body: 'Every note is saved and searchable, ready to edit, copy, or delete anytime.',
+    body: 'Every note is saved and searchable — by keyword or by meaning — ready to edit, share, or export anytime.',
   },
 ]
 
@@ -99,6 +100,37 @@ export default function Landing() {
       </section>
 
       <ContextDemo />
+
+      <Features />
+
+      <section className="border-t border-border">
+        <div className="mx-auto flex max-w-2xl flex-col items-center px-6 py-16 text-center">
+          <h2 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+            Talk. Get it right. Send it anywhere.
+          </h2>
+          <p className="mt-3 max-w-md text-ink-soft">
+            Start with the free plan and see how much better a transcript reads when it knows your words.
+          </p>
+          <div className="mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+            {isAuthenticated ? (
+              <Link to="/dashboard" className="w-full sm:w-auto">
+                <Button fullWidth>Go to your dashboard</Button>
+              </Link>
+            ) : (
+              <>
+                <Link to="/signup" className="w-full sm:w-auto">
+                  <Button fullWidth>Get started free</Button>
+                </Link>
+                <Link to="/pricing" className="w-full sm:w-auto">
+                  <Button variant="secondary" fullWidth>
+                    See pricing
+                  </Button>
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
