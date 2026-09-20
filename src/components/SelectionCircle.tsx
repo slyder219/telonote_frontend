@@ -1,6 +1,8 @@
+import type { MouseEvent } from 'react'
+
 interface SelectionCircleProps {
   selected: boolean
-  onToggle: () => void
+  onToggle: (event: MouseEvent<HTMLButtonElement>) => void
   label: string
 }
 
@@ -12,7 +14,7 @@ export default function SelectionCircle({ selected, onToggle, label }: Selection
   return (
     <button
       type="button"
-      onClick={onToggle}
+      onClick={(event) => onToggle(event)}
       aria-pressed={selected}
       aria-label={label}
       // The pseudo-element stretches the tappable area to 44x44 (Apple's

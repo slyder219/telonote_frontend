@@ -206,7 +206,7 @@ interface NoteCardProps {
   onSetColor?: (id: string, color: NoteColor | null) => void
   onToggleCompleted?: (id: string) => void
   selected?: boolean
-  onToggleSelect?: (id: string) => void
+  onToggleSelect?: (id: string, event?: { shiftKey: boolean }) => void
   searchQuery: string
   quota?: QuotaInfo | null
   isSelecting?: boolean
@@ -373,7 +373,7 @@ export default function NoteCard({
   const handleRowClick = (event: MouseEvent<HTMLDivElement>) => {
     if (!isSelecting) return
     if ((event.target as HTMLElement).closest('button, a, input, textarea, select')) return
-    onToggleSelect?.(note.id)
+    onToggleSelect?.(note.id, event)
   }
 
   // Everything beyond play/complete lives in one menu, iOS-context-menu
@@ -421,7 +421,7 @@ export default function NoteCard({
             {isSelecting && (
               <SelectionCircle
                 selected={selected}
-                onToggle={() => onToggleSelect?.(note.id)}
+                onToggle={(event) => onToggleSelect?.(note.id, event)}
                 label="Select note"
               />
             )}

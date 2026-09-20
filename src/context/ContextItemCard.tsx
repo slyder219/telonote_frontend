@@ -44,7 +44,7 @@ interface ContextItemCardProps {
   onUpdate: (id: string, input: UpdateContextItemInput) => void
   onDelete: (id: string) => void
   selected: boolean
-  onToggleSelect: (id: string) => void
+  onToggleSelect: (id: string, event?: { shiftKey: boolean }) => void
   searchQuery: string
   isSelecting?: boolean
 }
@@ -102,7 +102,7 @@ export default function ContextItemCard({
   const handleRowClick = (event: MouseEvent<HTMLDivElement>) => {
     if (!isSelecting || isEditing) return
     if ((event.target as HTMLElement).closest('button, a, input, textarea, select')) return
-    onToggleSelect(item.id)
+    onToggleSelect(item.id, event)
   }
 
   return (
@@ -118,7 +118,7 @@ export default function ContextItemCard({
             <div className="mt-1">
               <SelectionCircle
                 selected={selected}
-                onToggle={() => onToggleSelect(item.id)}
+                onToggle={(event) => onToggleSelect(item.id, event)}
                 label={`Select ${item.term}`}
               />
             </div>

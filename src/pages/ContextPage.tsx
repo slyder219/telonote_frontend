@@ -73,6 +73,13 @@ export default function ContextPage() {
     )
   }, [candidatesState.candidates, query])
 
+  // What's actually rendered, in order — shift-click ranges are measured
+  // against this, not the full (paginated-away) list.
+  const visibleItemIds = (query.trim() ? filteredItems : filteredItems.slice(0, visibleItems)).map((i) => i.id)
+  const visibleCandidateIds = (query.trim() ? filteredCandidates : filteredCandidates.slice(0, visibleCandidates)).map(
+    (c) => c.id,
+  )
+
   // Committing or merging a candidate creates/mutates a context item
   // server-side, but the resolved-candidate response doesn't include that
   // item — refresh the committed list rather than let it go stale.
@@ -245,7 +252,9 @@ export default function ContextPage() {
                     onUpdate={itemsState.updateItem}
                     onDelete={itemsState.deleteItem}
                     selected={itemSelection.isSelected(item.id)}
-                    onToggleSelect={itemSelection.toggle}
+                    onToggleSelect={(id, event) =>
+                      itemSelection.toggle(id, { shiftKey: event?.shiftKey, order: visibleItemIds })
+                    }
                     searchQuery={query}
                     isSelecting={isSelectingItems}
                   />
@@ -327,7 +336,9 @@ export default function ContextPage() {
                       onMerge={handleMerge}
                       onIgnore={candidatesState.ignore}
                       selected={candidateSelection.isSelected(candidate.id)}
-                      onToggleSelect={candidateSelection.toggle}
+                      onToggleSelect={(id, event) =>
+                        candidateSelection.toggle(id, { shiftKey: event?.shiftKey, order: visibleCandidateIds })
+                      }
                       searchQuery={query}
                       isSelecting={isSelectingCandidates}
                     />

@@ -103,6 +103,13 @@ export default function Dashboard() {
     () => (searchMode === 'text' ? groupNotesByDay(textFilteredNotes) : []),
     [searchMode, textFilteredNotes],
   )
+  // Shift-click ranges follow what's on screen: day groups (completed notes
+  // sunk to each day's bottom) in text mode, the ranked results otherwise.
+  const visibleNoteIds = (
+    searchMode === 'text' ? dayGroups.flatMap((g) => g.notes) : displayedNotes
+  ).map((n) => n.id)
+  const toggleNoteSelection = (id: string, event?: { shiftKey: boolean }) =>
+    selection.toggle(id, { shiftKey: event?.shiftKey, order: visibleNoteIds })
 
   const handleMeaningSearch = async (event: FormEvent) => {
     event.preventDefault()
@@ -451,7 +458,7 @@ export default function Dashboard() {
                     onSetColor={updateNoteColor}
                     onToggleCompleted={toggleNoteCompleted}
                     selected={selection.isSelected(note.id)}
-                    onToggleSelect={selection.toggle}
+                    onToggleSelect={toggleNoteSelection}
                     searchQuery={query}
                     quota={quota}
                     isSelecting={isSelecting}
@@ -475,7 +482,7 @@ export default function Dashboard() {
               onSetColor={updateNoteColor}
               onToggleCompleted={toggleNoteCompleted}
               selected={selection.isSelected(note.id)}
-              onToggleSelect={selection.toggle}
+              onToggleSelect={toggleNoteSelection}
               searchQuery=""
               quota={quota}
               isSelecting={isSelecting}

@@ -39,7 +39,7 @@ interface CandidateCardProps {
   onMerge: (id: string, contextItemId: string) => void
   onIgnore: (id: string) => void
   selected: boolean
-  onToggleSelect: (id: string) => void
+  onToggleSelect: (id: string, event?: { shiftKey: boolean }) => void
   searchQuery: string
   isSelecting?: boolean
 }
@@ -99,7 +99,7 @@ export default function CandidateCard({
   const handleRowClick = (event: MouseEvent<HTMLDivElement>) => {
     if (!isSelecting || isEditing || isMerging) return
     if ((event.target as HTMLElement).closest('button, a, input, textarea, select')) return
-    onToggleSelect(candidate.id)
+    onToggleSelect(candidate.id, event)
   }
 
   return (
@@ -115,7 +115,7 @@ export default function CandidateCard({
             <div className="mt-1">
               <SelectionCircle
                 selected={selected}
-                onToggle={() => onToggleSelect(candidate.id)}
+                onToggle={(event) => onToggleSelect(candidate.id, event)}
                 label={`Select ${candidate.proposed_term}`}
               />
             </div>
