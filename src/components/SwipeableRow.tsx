@@ -94,6 +94,9 @@ export default function SwipeableRow({ children, onDelete, onEdit, disabled }: S
             onEdit?.()
           }}
           aria-label="Edit"
+          // Hidden behind the row until swiped open: inert keeps it out of the
+          // tab order and the accessibility tree while it can't be seen.
+          inert={offset <= 0}
           className="absolute inset-y-0 left-0 flex items-center justify-center bg-brand-500 text-white"
           style={{ width: ACTION_WIDTH }}
         >
@@ -108,6 +111,7 @@ export default function SwipeableRow({ children, onDelete, onEdit, disabled }: S
             onDelete?.()
           }}
           aria-label="Delete"
+          inert={offset >= 0}
           className="absolute inset-y-0 right-0 flex items-center justify-center bg-red-500 text-white"
           style={{ width: ACTION_WIDTH }}
         >

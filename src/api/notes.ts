@@ -81,6 +81,15 @@ export function deleteNote(id: string, accessToken: string) {
   })
 }
 
+/** Undoes a delete. Only works for a short window (15 min) after the delete. */
+export function restoreNote(id: string, accessToken: string) {
+  return apiFetch<NoteDetail>(`/notes/${id}/restore`, {
+    method: 'POST',
+    accessToken,
+    withCredentials: false,
+  })
+}
+
 export function getNoteAudio(id: string, accessToken: string) {
   return apiFetchBlob(`/notes/${id}/audio`, { accessToken, withCredentials: false })
 }

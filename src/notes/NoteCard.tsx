@@ -2,6 +2,8 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { formatDuration, formatTimeOfDay } from './format'
 import Button from '../components/Button'
+import ActionMenu from '../components/ActionMenu'
+import type { ActionMenuItem } from '../components/ActionMenu'
 import SwipeableRow from '../components/SwipeableRow'
 import SelectionCircle from '../components/SelectionCircle'
 import ColorSwatchPicker from '../components/ColorSwatchPicker'
@@ -87,14 +89,6 @@ function ShareIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-    </svg>
-  )
-}
-
-function CheckIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -192,12 +186,12 @@ const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 
 // Buttons rely on real color/background contrast at rest, not just a
 // :hover state — hover never fires on a touchscreen, so an icon that's
 // only visible on hover is effectively invisible on iOS.
+// The ::after stretches each button's tappable area to 44px tall (Apple's
+// minimum) while the visible pill stays a compact 36px.
 const iconButtonClass =
-  'flex h-8 w-10 items-center justify-center rounded-full bg-paper text-ink transition-colors active:bg-border'
+  "relative flex h-9 w-11 items-center justify-center rounded-full bg-paper text-ink transition-colors active:bg-border after:absolute after:-inset-y-1 after:inset-x-0 after:content-['']"
 const playButtonClass =
-  'flex h-8 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-600 transition-colors active:bg-brand-100'
-const dangerButtonClass =
-  'flex h-8 w-10 items-center justify-center rounded-full bg-paper text-ink transition-colors active:bg-red-500/15 active:text-red-500'
+  "relative flex h-9 w-11 items-center justify-center rounded-full bg-brand-50 text-brand-600 transition-colors active:bg-brand-100 after:absolute after:-inset-y-1 after:inset-x-0 after:content-['']"
 
 interface NoteCardProps {
   note: ClientNote
@@ -239,7 +233,6 @@ export default function NoteCard({
   const [isPlaying, setIsPlaying] = useState(false)
   const [isLoadingAudio, setIsLoadingAudio] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
-  const [isActionsExpanded, setIsActionsExpanded] = useState(false)
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false)
   const [inlineError, setInlineError] = useState('')
   const [justCopied, setJustCopied] = useState(false)
@@ -307,7 +300,6 @@ export default function NoteCard({
   }, [justUpdated])
 
   const startEdit = () => {
-    setIsActionsExpanded(false)
     setDraft(note.finalTranscript ?? '')
     setIsEditing(true)
   }
@@ -339,14 +331,12 @@ export default function NoteCard({
     }
   }
 
-  const handleDelete = () => {
-    setIsActionsExpanded(false)
-    if (window.confirm("Delete this note? This can't be undone.")) onDelete?.(note.id)
-  }
+  // No confirm dialog: the dashboard shows an "Undo" toast after every
+  // delete, which is both faster and safer than a blocking prompt.
+  const handleDelete = () => onDelete?.(note.id)
 
   const handleCopy = async () => {
     if (!transcript) return
-    setIsActionsExpanded(false)
     try {
       await navigator.clipboard.writeText(transcript)
       setJustCopied(true)
@@ -357,9 +347,8 @@ export default function NoteCard({
     }
   }
 
-  const handleToggleShare = () => {
-    setIsActionsExpanded(false)
-    setIsSharePanelOpen((open) => !open)
+  const openSharePanel = () => {
+    setIsSharePanelOpen(true)
     setShareTitle(null)
   }
 
@@ -401,13 +390,11 @@ export default function NoteCard({
   }
 
   const handleRetranscribe = () => {
-    setIsActionsExpanded(false)
     setIsRetranscribingFlag(true)
     onRetranscribe?.(note.id)
   }
 
   const handleDownload = async () => {
-    setIsActionsExpanded(false)
     setInlineError('')
     setIsDownloading(true)
     try {
@@ -433,6 +420,39 @@ export default function NoteCard({
     if ((event.target as HTMLElement).closest('button, a, input, textarea, select')) return
     onToggleSelect?.(note.id)
   }
+
+  // Everything beyond play/complete lives in one menu, iOS-context-menu
+  // style: label left, icon right, destructive last.
+  const menuItems: ActionMenuItem[] = [
+    ...(transcript ? [{ key: 'copy', label: 'Copy transcript', icon: <CopyIcon />, onSelect: handleCopy }] : []),
+    ...(transcript && canShare
+      ? [{ key: 'share', label: 'Share…', icon: <ShareIcon />, onSelect: openSharePanel }]
+      : []),
+    {
+      key: 'download',
+      label: 'Download audio',
+      icon: <DownloadIcon />,
+      onSelect: handleDownload,
+      disabled: isDownloading,
+      hint: isDownloading ? 'Downloading…' : undefined,
+    },
+    {
+      key: 'retranscribe',
+      label: 'Re-transcribe',
+      icon: <RefreshIcon />,
+      onSelect: handleRetranscribe,
+      disabled: isQuotaExhausted,
+      hint: isQuotaExhausted ? 'Daily limit reached' : undefined,
+    },
+    { key: 'edit', label: 'Edit transcript', icon: <PencilIcon />, onSelect: startEdit },
+    {
+      key: 'color',
+      label: 'Color',
+      icon: <ColorDotIcon color={note.color} />,
+      onSelect: () => setIsColorPickerOpen((open) => !open),
+    },
+    { key: 'delete', label: 'Delete', icon: <TrashIcon />, onSelect: handleDelete, destructive: true },
+  ]
 
   return (
     <SwipeableRow
@@ -474,213 +494,41 @@ export default function NoteCard({
           </div>
 
           {!isSelecting && (
-            <>
-              {/* Full inline row — plenty of room on a desktop-width screen. */}
-              <div className="hidden shrink-0 items-center gap-2 sm:flex">
-                {canPlay && (
-                  <button
-                    type="button"
-                    onClick={togglePlay}
-                    disabled={isLoadingAudio}
-                    aria-label={isPlaying ? 'Pause' : 'Play recording'}
-                    className={playButtonClass}
-                  >
-                    {isLoadingAudio ? <SpinnerIcon /> : isPlaying ? <PauseIcon /> : <PlayIcon />}
-                  </button>
-                )}
-                {hasRealId && (
-                  <SelectionCircle
-                    selected={note.completed}
-                    onToggle={() => onToggleCompleted?.(note.id)}
-                    label={note.completed ? 'Mark note not completed' : 'Mark note completed'}
-                  />
-                )}
-                {hasRealId && transcript && (
-                  <button type="button" onClick={handleCopy} aria-label="Copy transcript" className={iconButtonClass}>
-                    {justCopied ? <CheckIcon /> : <CopyIcon />}
-                  </button>
-                )}
-                {hasRealId && transcript && canShare && (
-                  <button
-                    type="button"
-                    onClick={handleToggleShare}
-                    aria-label="Share transcript"
-                    aria-expanded={isSharePanelOpen}
-                    className={iconButtonClass}
-                  >
-                    <ShareIcon />
-                  </button>
-                )}
-                {hasRealId && (
-                  <button
-                    type="button"
-                    onClick={handleDownload}
-                    disabled={isDownloading}
-                    aria-label="Download audio"
-                    className={iconButtonClass}
-                  >
-                    {isDownloading ? <SpinnerIcon /> : <DownloadIcon />}
-                  </button>
-                )}
-                {hasRealId && (
-                  <button
-                    type="button"
-                    onClick={handleRetranscribe}
-                    disabled={isQuotaExhausted}
-                    aria-label="Re-run transcription"
-                    title={
-                      isQuotaExhausted ? "Daily limit reached — can't re-transcribe until it resets." : undefined
-                    }
-                    className={`${iconButtonClass} disabled:cursor-not-allowed disabled:opacity-40 disabled:active:bg-paper`}
-                  >
-                    <RefreshIcon />
-                  </button>
-                )}
-                {hasRealId && (
-                  <button
-                    type="button"
-                    onClick={() => setIsColorPickerOpen((open) => !open)}
-                    aria-label="Set note color"
-                    aria-expanded={isColorPickerOpen}
-                    className={iconButtonClass}
-                  >
-                    <ColorDotIcon color={note.color} />
-                  </button>
-                )}
-                {hasRealId && (
-                  <button type="button" onClick={startEdit} aria-label="Edit transcript" className={iconButtonClass}>
-                    <PencilIcon />
-                  </button>
-                )}
-                {hasRealId && (
-                  <button type="button" onClick={handleDelete} aria-label="Delete note" className={dangerButtonClass}>
-                    <TrashIcon />
-                  </button>
-                )}
-              </div>
-
-              {/* Mobile: "⋯" rolls the rest out sideways on the same row
-                  (a real sliding reveal via an animated max-width, not a
-                  popover — a popover here would get clipped by this card's
-                  own overflow-hidden ancestor in SwipeableRow). Only wraps
-                  to a second line if the row truly runs out of width, via
-                  the same flex-wrap the timestamp row already uses.
-                  Edit/delete are also one swipe away, but stay listed here
-                  too since swipe isn't always discoverable. */}
-              <div className="flex shrink-0 items-center gap-2 sm:hidden">
-                {canPlay && (
-                  <button
-                    type="button"
-                    onClick={togglePlay}
-                    disabled={isLoadingAudio}
-                    aria-label={isPlaying ? 'Pause' : 'Play recording'}
-                    className={playButtonClass}
-                  >
-                    {isLoadingAudio ? <SpinnerIcon /> : isPlaying ? <PauseIcon /> : <PlayIcon />}
-                  </button>
-                )}
-                {hasRealId && (
-                  <SelectionCircle
-                    selected={note.completed}
-                    onToggle={() => onToggleCompleted?.(note.id)}
-                    label={note.completed ? 'Mark note not completed' : 'Mark note completed'}
-                  />
-                )}
-                {/* This wrapper sits before the "⋯" toggle so the reveal
-                    grows out of its left rather than pushing the toggle
-                    itself sideways — the toggle stays put either way since
-                    it's still the row's last, right-anchored item. */}
-                {hasRealId && (
-                  <div
-                    className="shrink-0 overflow-hidden transition-[max-width] duration-300 ease-out"
-                    style={{ maxWidth: isActionsExpanded ? (transcript && canShare ? 360 : 310) : 0 }}
-                  >
-                    <div className="flex items-center gap-2 pr-2">
-                      {transcript && (
-                        <button
-                          type="button"
-                          onClick={handleCopy}
-                          aria-label="Copy transcript"
-                          className={`${iconButtonClass} shrink-0`}
-                        >
-                          {justCopied ? <CheckIcon /> : <CopyIcon />}
-                        </button>
-                      )}
-                      {transcript && canShare && (
-                        <button
-                          type="button"
-                          onClick={handleToggleShare}
-                          aria-label="Share transcript"
-                          aria-expanded={isSharePanelOpen}
-                          className={`${iconButtonClass} shrink-0`}
-                        >
-                          <ShareIcon />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={handleDownload}
-                        disabled={isDownloading}
-                        aria-label="Download audio"
-                        className={`${iconButtonClass} shrink-0`}
-                      >
-                        {isDownloading ? <SpinnerIcon /> : <DownloadIcon />}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleRetranscribe}
-                        disabled={isQuotaExhausted}
-                        aria-label="Re-run transcription"
-                        title={
-                          isQuotaExhausted
-                            ? "Daily limit reached — can't re-transcribe until it resets."
-                            : undefined
-                        }
-                        className={`${iconButtonClass} shrink-0 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:bg-paper`}
-                      >
-                        <RefreshIcon />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsColorPickerOpen((open) => !open)}
-                        aria-label="Set note color"
-                        aria-expanded={isColorPickerOpen}
-                        className={`${iconButtonClass} shrink-0`}
-                      >
-                        <ColorDotIcon color={note.color} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={startEdit}
-                        aria-label="Edit transcript"
-                        className={`${iconButtonClass} shrink-0`}
-                      >
-                        <PencilIcon />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleDelete}
-                        aria-label="Delete note"
-                        className={`${dangerButtonClass} shrink-0`}
-                      >
-                        <TrashIcon />
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {hasRealId && (
-                  <button
-                    type="button"
-                    onClick={() => setIsActionsExpanded((expanded) => !expanded)}
-                    aria-label="More actions"
-                    aria-expanded={isActionsExpanded}
-                    className={iconButtonClass}
-                  >
-                    <DotsIcon />
-                  </button>
-                )}
-              </div>
-            </>
+            <div className="-my-1.5 flex shrink-0 items-center gap-2">
+              {/* Always mounted so screen readers announce it when text appears. */}
+              <span role="status" className={justCopied ? 'text-xs text-ink-soft' : 'sr-only'}>
+                {justCopied ? 'Copied' : ''}
+              </span>
+              {canPlay && (
+                <button
+                  type="button"
+                  onClick={togglePlay}
+                  disabled={isLoadingAudio}
+                  aria-label={isPlaying ? 'Pause' : 'Play recording'}
+                  className={playButtonClass}
+                >
+                  {isLoadingAudio ? <SpinnerIcon /> : isPlaying ? <PauseIcon /> : <PlayIcon />}
+                </button>
+              )}
+              {hasRealId && (
+                <SelectionCircle
+                  selected={note.completed}
+                  onToggle={() => onToggleCompleted?.(note.id)}
+                  label={note.completed ? 'Mark note not completed' : 'Mark note completed'}
+                />
+              )}
+              {hasRealId && (
+                <ActionMenu
+                  label="Note actions"
+                  items={menuItems}
+                  renderTrigger={(triggerProps) => (
+                    <button type="button" aria-label="More actions" className={iconButtonClass} {...triggerProps}>
+                      <DotsIcon />
+                    </button>
+                  )}
+                />
+              )}
+            </div>
           )}
         </div>
 
@@ -745,7 +593,7 @@ export default function NoteCard({
           </div>
         )}
 
-        {inlineError && <p className="mt-1 text-right text-xs text-red-500">{inlineError}</p>}
+        {inlineError && <p className="mt-1 text-right text-xs text-red-700 dark:text-red-300">{inlineError}</p>}
 
         {note.localAudioUrl && (
           <>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { useSelection } from '../hooks/useSelection'
@@ -19,8 +19,14 @@ import Button from '../components/Button'
 import SearchInput from '../components/SearchInput'
 import SelectionHeader from '../components/SelectionHeader'
 import ExportMenu from '../components/ExportMenu'
+import Toast from '../components/Toast'
+import type { ToastData } from '../components/Toast'
 
 type SearchMode = 'text' | 'meaning'
+
+// The OS share sheet (where Notes and Reminders live on iOS) — only offered
+// where the browser implements the Web Share API.
+const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
 function SkeletonCard() {
   return (
@@ -51,6 +57,7 @@ export default function Dashboard() {
     toggleNoteCompleted,
     deleteNoteById,
     bulkDeleteNotes,
+    restoreNotes,
     retranscribeNote,
     fetchAudioUrl,
     generateTitle,
@@ -112,12 +119,73 @@ export default function Dashboard() {
     }
   }
 
+  // Delete-then-Undo instead of confirm-then-delete. Deletes made while the
+  // toast is still showing join it, so a single Undo brings all of them back.
+  const [toast, setToast] = useState<ToastData | null>(null)
+  const undoIds = useRef<string[]>([])
+  const toastCount = useRef(0)
+
+  const dismissToast = useCallback(() => {
+    undoIds.current = []
+    setToast(null)
+  }, [])
+
+  const offerUndo = useCallback(
+    (deletedIds: string[]) => {
+      if (deletedIds.length === 0) return
+      undoIds.current = [...undoIds.current, ...deletedIds]
+      const total = undoIds.current.length
+      toastCount.current += 1
+      setToast({
+        message: total === 1 ? 'Note deleted' : `${total} notes deleted`,
+        actionLabel: 'Undo',
+        onAction: () => {
+          const toRestore = undoIds.current
+          undoIds.current = []
+          void restoreNotes(toRestore)
+        },
+        resetKey: toastCount.current,
+      })
+    },
+    [restoreNotes],
+  )
+
+  const handleDeleteNote = async (id: string) => {
+    if (await deleteNoteById(id)) offerUndo([id])
+  }
+
   const handleBulkDelete = async () => {
     const ids = [...selection.selectedIds]
-    if (!window.confirm(`Delete ${ids.length} note${ids.length === 1 ? '' : 's'}? This can't be undone.`)) return
     selection.clear()
     setIsSelecting(false)
-    await bulkDeleteNotes(ids)
+    offerUndo(await bulkDeleteNotes(ids))
+  }
+
+  // Several notes, one share-sheet hand-off: the share sheet takes a single
+  // payload, so they go as one combined text (same shape as Copy).
+  const handleBulkShare = async () => {
+    const ids = selection.selectedIds
+    const selected = notes.filter((note) => ids.has(note.id))
+    const text = formatNotesForExport(
+      selected.map((note) => ({
+        id: note.id,
+        createdAt: note.createdAt,
+        durationMs: note.durationMs,
+        transcript: note.finalTranscript ?? note.roughTranscript,
+      })),
+      'txt',
+    )
+    try {
+      // Straight from the tap, nothing awaited first — iOS needs the gesture.
+      await navigator.share({ text })
+      selection.clear()
+      setIsSelecting(false)
+    } catch (error) {
+      // Dismissing the share sheet is not an error; keep the selection.
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      setCopyMessage("Couldn't open the share sheet.")
+      setTimeout(() => setCopyMessage(null), 4000)
+    }
   }
 
   const handleBulkCopy = async () => {
@@ -241,7 +309,7 @@ export default function Dashboard() {
       )}
 
       {searchMode === 'meaning' && meaningError && (
-        <div className="mb-4 rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-center text-sm text-red-500">
+        <div className="mb-4 rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-center text-sm text-red-700 dark:text-red-300">
           {meaningError}
         </div>
       )}
@@ -302,6 +370,17 @@ export default function Dashboard() {
             >
               Copy
             </Button>
+            {canShare && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="!px-3 !py-1.5 !text-sm"
+                disabled={selection.count === 0}
+                onClick={handleBulkShare}
+              >
+                Share
+              </Button>
+            )}
             <ExportMenu
               onExport={handleBulkExport}
               disabled={selection.count === 0}
@@ -312,7 +391,7 @@ export default function Dashboard() {
             <Button
               type="button"
               variant="secondary"
-              className="!px-3 !py-1.5 !text-sm !text-red-600"
+              className="!px-3 !py-1.5 !text-sm !text-red-700 dark:!text-red-300"
               disabled={selection.count === 0}
               onClick={handleBulkDelete}
             >
@@ -330,7 +409,7 @@ export default function Dashboard() {
             <SkeletonCard />
           </div>
         ) : loadError ? (
-          <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-center text-sm text-red-500">
+          <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-center text-sm text-red-700 dark:text-red-300">
             {loadError}
           </div>
         ) : notes.length === 0 ? (
@@ -351,7 +430,7 @@ export default function Dashboard() {
                     key={note.id}
                     note={note}
                     onEdit={editTranscript}
-                    onDelete={deleteNoteById}
+                    onDelete={handleDeleteNote}
                     onRetryUpload={retryUpload}
                     onDiscardUpload={discardUpload}
                     onRequestAudio={fetchAudioUrl}
@@ -375,7 +454,7 @@ export default function Dashboard() {
               key={note.id}
               note={note}
               onEdit={editTranscript}
-              onDelete={deleteNoteById}
+              onDelete={handleDeleteNote}
               onRetryUpload={retryUpload}
               onDiscardUpload={discardUpload}
               onRequestAudio={fetchAudioUrl}
@@ -396,6 +475,8 @@ export default function Dashboard() {
           <LoadMoreButton onClick={loadMore} isLoading={isLoadingMore} />
         )}
       </div>
+
+      <Toast toast={toast} onDismiss={dismissToast} />
     </div>
   )
 }

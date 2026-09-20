@@ -434,6 +434,7 @@ export function useNotes() {
           URL.revokeObjectURL(url)
           localAudioUrls.current.delete(id)
         }
+        return true
       } catch {
         setNotes((current) => {
           if (!removedNote) return current
@@ -442,14 +443,17 @@ export function useNotes() {
           return next
         })
         showBanner("Couldn't delete that note — it's back.")
+        return false
       }
     },
     [callWithAuthRetry, showBanner],
   )
 
+  // Returns the ids that were actually deleted (so the caller can offer Undo
+  // for exactly those).
   const bulkDeleteNotes = useCallback(
-    async (ids: string[]) => {
-      if (ids.length === 0) return
+    async (ids: string[]): Promise<string[]> => {
+      if (ids.length === 0) return []
       ids.forEach(clearPoll)
       const idSet = new Set(ids)
       let removed: { index: number; note: ClientNote }[] = []
@@ -484,6 +488,46 @@ export function useNotes() {
           succeeded > 0
             ? `Deleted ${succeeded}, ${failedIds.size} failed.`
             : `Couldn't delete ${failedIds.size === 1 ? 'that note' : 'those notes'}.`,
+        )
+      }
+      return ids.filter((id) => !failedIds.has(id))
+    },
+    [callWithAuthRetry, showBanner],
+  )
+
+  // Undo for deletes. Asks the server to un-delete each note, then slots the
+  // returned notes back into the list where they belong by date (the list is
+  // newest-first). The server copy is used, not the one we had locally, so
+  // this is right even if the note changed elsewhere in the meantime. A note
+  // that can't be restored (e.g. past the server's undo window) is reported,
+  // not silently dropped.
+  const restoreNotes = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return
+      const results = await Promise.allSettled(
+        ids.map((id) => callWithAuthRetry((token) => notesApi.restoreNote(id, token))),
+      )
+      const restored = results.flatMap((result) =>
+        result.status === 'fulfilled' ? [toClientNote(result.value)] : [],
+      )
+      if (restored.length > 0) {
+        setNotes((current) => {
+          const next = [...current]
+          for (const note of restored) {
+            if (next.some((existing) => existing.id === note.id)) continue
+            const createdAt = Date.parse(note.createdAt)
+            const at = next.findIndex((existing) => Date.parse(existing.createdAt) < createdAt)
+            next.splice(at === -1 ? next.length : at, 0, note)
+          }
+          return next
+        })
+      }
+      const failed = ids.length - restored.length
+      if (failed > 0) {
+        showBanner(
+          restored.length > 0
+            ? `Restored ${restored.length}, ${failed} couldn't be restored.`
+            : "Couldn't undo that — it may have been deleted too long ago.",
         )
       }
     },
@@ -626,6 +670,7 @@ export function useNotes() {
     toggleNoteCompleted,
     deleteNoteById,
     bulkDeleteNotes,
+    restoreNotes,
     retranscribeNote,
     fetchAudioUrl,
     generateTitle,

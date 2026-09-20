@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { ExportFormat } from '../notes/format'
+import ActionMenu from './ActionMenu'
 
 interface ExportMenuProps {
   onExport: (format: ExportFormat) => void
@@ -17,52 +17,20 @@ const FORMATS: { format: ExportFormat; label: string }[] = [
   { format: 'json', label: 'JSON (.json)' },
 ]
 
-// A small format-choice popover for the export actions — safe to use as a
-// plain dropdown here (unlike NoteCard's per-row actions) since nothing on
-// this page clips overflow the way SwipeableRow's card wrapper does.
+// The format picker for the export actions — the shared iOS-style menu, so it
+// gets keyboard navigation, Escape/outside-tap dismissal and screen-reader
+// roles for free.
 export default function ExportMenu({ onExport, disabled, triggerClassName, children }: ExportMenuProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const containerRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    if (!isOpen) return
-    const handlePointerDown = (event: PointerEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setIsOpen(false)
-    }
-    document.addEventListener('pointerdown', handlePointerDown)
-    return () => document.removeEventListener('pointerdown', handlePointerDown)
-  }, [isOpen])
-
-  const choose = (format: ExportFormat) => {
-    setIsOpen(false)
-    onExport(format)
-  }
-
   return (
-    <div ref={containerRef} className="relative inline-block">
-      <button
-        type="button"
-        disabled={disabled}
-        aria-expanded={isOpen}
-        onClick={() => setIsOpen((open) => !open)}
-        className={triggerClassName}
-      >
-        {children}
-      </button>
-      {isOpen && (
-        <div className="absolute left-0 top-full z-10 mt-1 min-w-36 overflow-hidden rounded-xl border border-border bg-surface py-1 text-left shadow-lg">
-          {FORMATS.map(({ format, label }) => (
-            <button
-              key={format}
-              type="button"
-              onClick={() => choose(format)}
-              className="block w-full px-4 py-2 text-left text-sm text-ink active:bg-paper"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+    <ActionMenu
+      label="Export format"
+      align="start"
+      items={FORMATS.map(({ format, label }) => ({ key: format, label, onSelect: () => onExport(format) }))}
+      renderTrigger={(triggerProps) => (
+        <button type="button" disabled={disabled} className={triggerClassName} {...triggerProps}>
+          {children}
+        </button>
       )}
-    </div>
+    />
   )
 }

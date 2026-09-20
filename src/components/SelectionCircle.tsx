@@ -15,8 +15,12 @@ export default function SelectionCircle({ selected, onToggle, label }: Selection
       onClick={onToggle}
       aria-pressed={selected}
       aria-label={label}
-      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-        selected ? 'border-brand-500 bg-brand-500' : 'border-border bg-transparent'
+      // The pseudo-element stretches the tappable area to 44x44 (Apple's
+      // minimum) without changing the ring's 24px look or the row layout.
+      // The empty ring uses a real contrast color (>=3:1) — the old faint
+      // border token was near-invisible in light mode.
+      className={`relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors after:absolute after:-inset-2.5 after:content-[''] ${
+        selected ? 'border-brand-500 bg-brand-500' : 'border-ink-soft/80 bg-transparent'
       }`}
     >
       <svg
