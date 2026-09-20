@@ -25,6 +25,7 @@ export default function Sheet({ isOpen, onClose, label, onExited, children }: Sh
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen)
   const dialogRef = useRef<HTMLDialogElement | null>(null)
   const onExitedRef = useRef(onExited)
+  const exitedPending = useRef(false)
   useEffect(() => {
     onExitedRef.current = onExited
   })
@@ -41,10 +42,19 @@ export default function Sheet({ isOpen, onClose, label, onExited, children }: Sh
     if (phase !== 'closing') return
     const exitMs = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : EXIT_MS
     const timer = window.setTimeout(() => {
+      exitedPending.current = true
       setPhase('closed')
-      onExitedRef.current?.()
     }, exitMs)
     return () => window.clearTimeout(timer)
+  }, [phase])
+
+  // Fire onExited only AFTER the dialog has left the DOM. While a modal dialog
+  // is still open the rest of the page is inert, so a focus() call made any
+  // earlier (e.g. handing focus back to the trigger) silently does nothing.
+  useEffect(() => {
+    if (phase !== 'closed' || !exitedPending.current) return
+    exitedPending.current = false
+    onExitedRef.current?.()
   }, [phase])
 
   const isRendered = phase !== 'closed'
