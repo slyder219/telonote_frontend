@@ -53,6 +53,7 @@ export default function Dashboard() {
     bulkDeleteNotes,
     retranscribeNote,
     fetchAudioUrl,
+    generateTitle,
     searchByMeaning,
     exportAllNotes,
     isExporting,
@@ -354,6 +355,7 @@ export default function Dashboard() {
                     onRetryUpload={retryUpload}
                     onDiscardUpload={discardUpload}
                     onRequestAudio={fetchAudioUrl}
+                    onGenerateTitle={generateTitle}
                     onRetranscribe={retranscribeNote}
                     onSetColor={updateNoteColor}
                     onToggleCompleted={toggleNoteCompleted}
@@ -377,6 +379,7 @@ export default function Dashboard() {
               onRetryUpload={retryUpload}
               onDiscardUpload={discardUpload}
               onRequestAudio={fetchAudioUrl}
+              onGenerateTitle={generateTitle}
               onRetranscribe={retranscribeNote}
               onSetColor={updateNoteColor}
               onToggleCompleted={toggleNoteCompleted}

@@ -96,6 +96,15 @@ export function retranscribeNote(id: string, accessToken: string) {
   })
 }
 
+/** A short AI-generated title for the note. Stateless on the server — nothing is saved, and asking again may give a different title. */
+export function generateNoteTitle(id: string, accessToken: string) {
+  return apiFetch<{ title: string }>(`/notes/${id}/title`, {
+    method: 'POST',
+    accessToken,
+    withCredentials: false,
+  })
+}
+
 export interface UsageInfo {
   limit_bytes: number
   used_bytes: number

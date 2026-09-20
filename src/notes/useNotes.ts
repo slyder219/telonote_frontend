@@ -556,6 +556,11 @@ export function useNotes() {
     [callWithAuthRetry],
   )
 
+  const generateTitle = useCallback(
+    async (id: string) => (await callWithAuthRetry((token) => notesApi.generateNoteTitle(id, token))).title,
+    [callWithAuthRetry],
+  )
+
   // Semantic ("by meaning") search returns bare {id, distance} pairs, not
   // full note data — the caller intersects these ids against the already-
   // loaded `notes` list and reuses that data, rather than this hook fetching
@@ -623,6 +628,7 @@ export function useNotes() {
     bulkDeleteNotes,
     retranscribeNote,
     fetchAudioUrl,
+    generateTitle,
     searchByMeaning,
     exportAllNotes,
     isExporting,
