@@ -74,11 +74,12 @@ export interface ExportRecord {
   transcript: string | null
 }
 
-export type ExportFormat = 'txt' | 'md' | 'csv' | 'json'
+export type ExportFormat = 'txt' | 'md' | 'enex' | 'csv' | 'json'
 
 const EXPORT_MIME_TYPES: Record<ExportFormat, string> = {
   txt: 'text/plain',
   md: 'text/markdown',
+  enex: 'application/xml',
   csv: 'text/csv',
   json: 'application/json',
 }
@@ -90,8 +91,58 @@ function csvCell(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
 }
 
+function escapeXml(value: string): string {
+  return (
+    value
+      // XML 1.0 forbids most control characters outright, even escaped — a
+      // single stray one would make the whole file unimportable.
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+  )
+}
+
+// ENEX timestamps are UTC, compact ISO-8601: 20260920T150000Z.
+function enexTimestamp(isoDate: string): string {
+  return new Date(isoDate).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+}
+
+/**
+ * Evernote's export format (.enex) — importable by Apple Notes on a Mac
+ * (File > Import to Notes), which carries each note's created date along,
+ * unlike a plain .txt/.md import. Text-only: no attachments/resources.
+ */
+function formatAsEnex(records: ExportRecord[]): string {
+  const notes = records.map((r) => {
+    const stamp = enexTimestamp(r.createdAt)
+    const lines = (r.transcript ?? '(no transcript)').split(/\r?\n/)
+    const body = lines.map((line) => `<div>${line ? escapeXml(line) : '<br/>'}</div>`).join('')
+    // Escaping ">" above means the content can never contain "]]>", so the
+    // CDATA wrapper can't be terminated early by a transcript.
+    const enml =
+      '<?xml version="1.0" encoding="UTF-8"?>' +
+      '<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">' +
+      `<en-note>${body}</en-note>`
+    return (
+      `<note><title>${escapeXml(new Date(r.createdAt).toLocaleString())}</title>` +
+      `<content><![CDATA[${enml}]]></content>` +
+      `<created>${stamp}</created><updated>${stamp}</updated></note>`
+    )
+  })
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<!DOCTYPE en-export SYSTEM "http://xml.evernote.com/pub/evernote-export4.dtd">',
+    `<en-export export-date="${enexTimestamp(new Date().toISOString())}" application="Telonote" version="1">`,
+    ...notes,
+    '</en-export>',
+  ].join('\n')
+}
+
 /** Formats a batch of notes for export/download in the given format — newest-first order is the caller's responsibility. */
 export function formatNotesForExport(records: ExportRecord[], format: ExportFormat): string {
+  if (format === 'enex') return formatAsEnex(records)
   if (format === 'json') {
     return JSON.stringify(
       records.map((r) => ({
