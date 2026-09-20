@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { KeyboardEvent, ReactNode, Ref } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -33,6 +33,9 @@ interface ActionMenuProps {
 }
 
 const MENU_WIDTH = 248
+// Matches .menu-out in index.css. Zero under prefers-reduced-motion, where that
+// animation is disabled and lingering on screen would just feel laggy.
+const EXIT_MS = 140
 const EDGE = 8
 const GAP = 6
 
@@ -52,22 +55,50 @@ interface Placement {
 // resize; arrow keys/Home/End move between items; focus returns to the
 // trigger when it closes.
 export default function ActionMenu({ items, label, renderTrigger, align = 'end' }: ActionMenuProps) {
-  const [isOpen, setIsOpen] = useState(false)
+  // closed -> open -> closing -> closed. "closing" keeps the menu mounted for
+  // its exit animation; it is inert then, so it can't be tapped or focused.
+  const [phase, setPhase] = useState<'closed' | 'open' | 'closing'>('closed')
   const [placement, setPlacement] = useState<Placement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const exitTimer = useRef<number | null>(null)
   const menuId = useId()
+  const isOpen = phase === 'open'
+  const isRendered = phase !== 'closed'
 
-  const close = (restoreFocus: boolean) => {
-    setIsOpen(false)
-    setPlacement(null)
-    if (restoreFocus) triggerRef.current?.focus()
+  const clearExitTimer = useCallback(() => {
+    if (exitTimer.current !== null) window.clearTimeout(exitTimer.current)
+    exitTimer.current = null
+  }, [])
+
+  const open = () => {
+    clearExitTimer()
+    setPhase('open')
   }
+
+  const close = useCallback(
+    (restoreFocus: boolean) => {
+      if (!isOpen) return
+      setPhase('closing')
+      if (restoreFocus) triggerRef.current?.focus()
+      const exitMs = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : EXIT_MS
+      clearExitTimer()
+      exitTimer.current = window.setTimeout(() => {
+        setPhase('closed')
+        setPlacement(null)
+      }, exitMs)
+    },
+    [isOpen, clearExitTimer],
+  )
+
+  useEffect(() => clearExitTimer, [clearExitTimer])
 
   // Measure after the (still hidden) menu mounts, then place it before paint.
   // Flips above the trigger when there isn't room below.
   useLayoutEffect(() => {
-    if (!isOpen) return
+    // Also re-runs when reopening mid-exit (isOpen flips back to true while it
+    // is still mounted), so the position is never stale.
+    if (!isRendered || !isOpen) return
     const trigger = triggerRef.current
     const menu = menuRef.current
     if (!trigger || !menu) return
@@ -80,15 +111,14 @@ export default function ActionMenu({ items, label, renderTrigger, align = 'end' 
     const openUp = height > spaceBelow && spaceAbove > spaceBelow
     const top = openUp ? Math.max(EDGE, t.top - GAP - height) : t.bottom + GAP
     setPlacement({ top, left, origin: `${t.left + t.width / 2 - left}px ${openUp ? 'bottom' : 'top'}` })
-  }, [isOpen, align])
+  }, [isRendered, isOpen, align])
 
   // Put focus on the first usable item once the menu is actually visible.
+  const isPlaced = placement !== null
   useEffect(() => {
-    if (!placement) return
+    if (!isOpen || !isPlaced) return
     menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus({ preventScroll: true })
-    // Only when it first appears — not on every re-placement.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [placement === null])
+  }, [isOpen, isPlaced])
 
   useEffect(() => {
     if (!isOpen) return
@@ -114,7 +144,7 @@ export default function ActionMenu({ items, label, renderTrigger, align = 'end' 
       window.removeEventListener('scroll', onScrollOrResize, true)
       window.removeEventListener('resize', onScrollOrResize)
     }
-  }, [isOpen])
+  }, [isOpen, close])
 
   const handleSelect = (item: ActionMenuItem) => {
     close(false)
@@ -151,12 +181,12 @@ export default function ActionMenu({ items, label, renderTrigger, align = 'end' 
     <>
       {renderTrigger({
         ref: triggerRef,
-        onClick: () => (isOpen ? close(false) : setIsOpen(true)),
+        onClick: () => (isOpen ? close(false) : open()),
         'aria-haspopup': 'menu',
         'aria-expanded': isOpen,
         'aria-controls': isOpen ? menuId : undefined,
       })}
-      {isOpen &&
+      {isRendered &&
         createPortal(
           <div
             ref={menuRef}
@@ -164,6 +194,13 @@ export default function ActionMenu({ items, label, renderTrigger, align = 'end' 
             role="menu"
             aria-label={label}
             onKeyDown={handleMenuKeyDown}
+            inert={!isOpen}
+            // Portaled, but React still bubbles events to the note row's swipe
+            // handler - sliding a finger over the menu must not drag the row.
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerMove={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+            onPointerCancel={(event) => event.stopPropagation()}
             style={{
               top: placement?.top ?? 0,
               left: placement?.left ?? 0,
@@ -173,7 +210,7 @@ export default function ActionMenu({ items, label, renderTrigger, align = 'end' 
               visibility: placement ? 'visible' : 'hidden',
             }}
             className={`fixed z-50 overflow-y-auto rounded-2xl border border-border bg-surface/90 text-ink shadow-[0_10px_40px_rgba(0,0,0,0.22)] backdrop-blur-xl ${
-              placement ? 'menu-pop' : ''
+              placement ? (isOpen ? 'menu-in' : 'menu-out') : ''
             }`}
           >
             {items.map((item, index) => (

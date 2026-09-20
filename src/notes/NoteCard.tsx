@@ -1,8 +1,9 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { formatDuration, formatTimeOfDay } from './format'
 import Button from '../components/Button'
 import ActionMenu from '../components/ActionMenu'
+import ShareSheet from './ShareSheet'
 import type { ActionMenuItem } from '../components/ActionMenu'
 import SwipeableRow from '../components/SwipeableRow'
 import SelectionCircle from '../components/SelectionCircle'
@@ -236,12 +237,8 @@ export default function NoteCard({
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false)
   const [inlineError, setInlineError] = useState('')
   const [justCopied, setJustCopied] = useState(false)
-  const [isSharePanelOpen, setIsSharePanelOpen] = useState(false)
-  // null = no title step yet (the panel's two-choice view); a string = a
-  // generated (and now user-editable) title waiting for its own Share tap.
-  const [shareTitle, setShareTitle] = useState<string | null>(null)
-  const [isGeneratingTitle, setIsGeneratingTitle] = useState(false)
-  const shareTitleInputId = useId()
+  const [isShareOpen, setIsShareOpen] = useState(false)
+  const cardRef = useRef<HTMLDivElement | null>(null)
   const [justUpdated, setJustUpdated] = useState(false)
   const [isRetranscribingFlag, setIsRetranscribingFlag] = useState(false)
   const [prevStatus, setPrevStatus] = useState(note.status)
@@ -347,48 +344,6 @@ export default function NoteCard({
     }
   }
 
-  const openSharePanel = () => {
-    setIsSharePanelOpen(true)
-    setShareTitle(null)
-  }
-
-  // Apple Notes takes the first line of shared text as the note's title, so
-  // a title goes on its own line above the transcript.
-  const shareNote = async (title?: string) => {
-    if (!transcript) return
-    const trimmedTitle = title?.trim()
-    const text = trimmedTitle ? `${trimmedTitle}\n\n${transcript}` : transcript
-    try {
-      // Reached straight from a tap, with nothing awaited first — iOS Safari
-      // rejects share() unless it runs inside the user gesture. That's why
-      // titling is its own step (generate, then a separate Share tap): a
-      // share() chained after the title fetch would lose the gesture.
-      await navigator.share({ text })
-      setIsSharePanelOpen(false)
-      setShareTitle(null)
-    } catch (error) {
-      // Dismissing the share sheet rejects with AbortError — not a failure;
-      // leave the panel open so they can pick again.
-      if (error instanceof DOMException && error.name === 'AbortError') return
-      setInlineError("Couldn't open the share sheet.")
-      setTimeout(() => setInlineError(''), 3000)
-    }
-  }
-
-  const handleGenerateTitle = async () => {
-    if (!onGenerateTitle) return
-    setInlineError('')
-    setIsGeneratingTitle(true)
-    try {
-      setShareTitle(await onGenerateTitle(note.id))
-    } catch {
-      setInlineError("Couldn't write a title right now — you can still share without one.")
-      setTimeout(() => setInlineError(''), 4000)
-    } finally {
-      setIsGeneratingTitle(false)
-    }
-  }
-
   const handleRetranscribe = () => {
     setIsRetranscribingFlag(true)
     onRetranscribe?.(note.id)
@@ -426,7 +381,7 @@ export default function NoteCard({
   const menuItems: ActionMenuItem[] = [
     ...(transcript ? [{ key: 'copy', label: 'Copy transcript', icon: <CopyIcon />, onSelect: handleCopy }] : []),
     ...(transcript && canShare
-      ? [{ key: 'share', label: 'Share…', icon: <ShareIcon />, onSelect: openSharePanel }]
+      ? [{ key: 'share', label: 'Share…', icon: <ShareIcon />, onSelect: () => setIsShareOpen(true) }]
       : []),
     {
       key: 'download',
@@ -460,7 +415,7 @@ export default function NoteCard({
       onEdit={hasRealId ? startEdit : undefined}
       disabled={isSelecting}
     >
-      <div onClick={handleRowClick} className={`p-4 ${isSelecting ? 'cursor-pointer' : ''} ${rowBgClass}`}>
+      <div ref={cardRef} onClick={handleRowClick} className={`p-4 ${isSelecting ? 'cursor-pointer' : ''} ${rowBgClass}`}>
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-soft">
             {isSelecting && (
@@ -542,55 +497,15 @@ export default function NoteCard({
           />
         )}
 
-        {isSharePanelOpen && !isSelecting && transcript && (
-          <div className="mt-2 flex flex-col gap-2 rounded-xl border border-border bg-paper p-3" role="group" aria-label="Share note">
-            {shareTitle === null ? (
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="secondary" className="!px-4 !py-2 !text-sm" onClick={() => shareNote()}>
-                  Share text
-                </Button>
-                {onGenerateTitle && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="!px-4 !py-2 !text-sm"
-                    isLoading={isGeneratingTitle}
-                    onClick={handleGenerateTitle}
-                  >
-                    {isGeneratingTitle ? 'Writing title…' : 'Add AI title…'}
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <>
-                <label htmlFor={shareTitleInputId} className="text-xs text-ink-soft">
-                  Title — shared as the first line
-                </label>
-                {/* text-[16px]: anything smaller makes iOS Safari zoom the page on focus. */}
-                <input
-                  id={shareTitleInputId}
-                  type="text"
-                  value={shareTitle}
-                  onChange={(e) => setShareTitle(e.target.value)}
-                  maxLength={120}
-                  className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-[16px] text-ink outline-none focus:border-brand-400"
-                />
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="!px-4 !py-2 !text-sm"
-                    onClick={() => setShareTitle(null)}
-                  >
-                    Back
-                  </Button>
-                  <Button type="button" variant="primary" className="!px-4 !py-2 !text-sm" onClick={() => shareNote(shareTitle)}>
-                    Share
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
+        {canShare && transcript && (
+          <ShareSheet
+            isOpen={isShareOpen && !isSelecting}
+            onClose={() => setIsShareOpen(false)}
+            // Hand focus back to the row's ⋯ button once the sheet is gone.
+            onExited={() => cardRef.current?.querySelector<HTMLElement>('button[aria-label="More actions"]')?.focus()}
+            transcript={transcript}
+            onGenerateTitle={onGenerateTitle ? () => onGenerateTitle(note.id) : undefined}
+          />
         )}
 
         {inlineError && <p className="mt-1 text-right text-xs text-danger">{inlineError}</p>}
