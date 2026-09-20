@@ -5,7 +5,7 @@ import { useSelection } from '../hooks/useSelection'
 import { useNotes } from '../notes/useNotes'
 import { fuzzySearch } from '../search/fuzzySearch'
 import { groupNotesByDay } from '../notes/groupByDay'
-import { downloadTextFile, exportFilename, formatNotesAsChecklistText, formatNotesForExport } from '../notes/format'
+import { downloadTextFile, exportAsFile, exportFilename, formatNotesForExport } from '../notes/format'
 import type { ExportFormat } from '../notes/format'
 import type { ClientNote } from '../notes/types'
 import type { NoteSearchResult } from '../api/notes'
@@ -28,6 +28,13 @@ type SearchMode = 'text' | 'meaning'
 // The OS share sheet (where Notes and Reminders live on iOS) — only offered
 // where the browser implements the Web Share API.
 const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+
+// Sharing the checklist as a real .enex file needs file support in the Web
+// Share API, which is narrower than plain-text sharing.
+const canShareFiles =
+  canShare &&
+  typeof navigator.canShare === 'function' &&
+  navigator.canShare({ files: [new File([''], 'telonote.enex', { type: 'application/xml' })] })
 
 function SkeletonCard() {
   return (
@@ -171,8 +178,9 @@ export default function Dashboard() {
 
   // Several notes, one share-sheet hand-off: the share sheet takes a single
   // payload, so they go as one combined text (same shape as Copy) — or, as a
-  // checklist, one "- [ ]" line per note.
-  const handleBulkShare = async (asChecklist: boolean) => {
+  // checklist, the Apple Notes checklist .enex file (the only form that
+  // reliably lands as checkboxes; plain text can't carry them).
+  const handleBulkShare = async (asChecklistFile: boolean) => {
     const ids = selection.selectedIds
     const selected = notes.filter((note) => ids.has(note.id))
     const records = selected.map((note) => ({
@@ -182,10 +190,20 @@ export default function Dashboard() {
       transcript: note.finalTranscript ?? note.roughTranscript,
       completed: note.completed,
     }))
-    const text = asChecklist ? formatNotesAsChecklistText(records) : formatNotesForExport(records, 'txt')
+    const payload: ShareData = asChecklistFile
+      ? {
+          files: [
+            exportAsFile(
+              exportFilename('enex-checklist'),
+              formatNotesForExport(records, 'enex-checklist'),
+              'enex-checklist',
+            ),
+          ],
+        }
+      : { text: formatNotesForExport(records, 'txt') }
     try {
       // Straight from the tap, nothing awaited first — iOS needs the gesture.
-      await navigator.share({ text })
+      await navigator.share(payload)
       selection.clear()
       setIsSelecting(false)
     } catch (error) {
@@ -385,7 +403,15 @@ export default function Dashboard() {
                 align="start"
                 items={[
                   { key: 'text', label: 'Share as text', onSelect: () => handleBulkShare(false) },
-                  { key: 'checklist', label: 'Share as checklist', onSelect: () => handleBulkShare(true) },
+                  ...(canShareFiles
+                    ? [
+                        {
+                          key: 'checklist',
+                          label: 'Share as checklist (.enex)',
+                          onSelect: () => handleBulkShare(true),
+                        },
+                      ]
+                    : []),
                 ]}
                 renderTrigger={(triggerProps) => (
                   <Button

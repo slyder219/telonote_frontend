@@ -160,7 +160,7 @@ interface ChecklistDay {
 
 // One entry per calendar day (input order kept): a full-date title plus one
 // checkable line per note — time first, then the transcript flattened onto a
-// single line. Shared by the .enex checklist export and the share-sheet text.
+// single line.
 function checklistDays(records: ExportRecord[]): ChecklistDay[] {
   const days = new Map<string, ExportRecord[]>()
   for (const r of records) {
@@ -196,19 +196,6 @@ function formatAsEnexChecklist(records: ExportRecord[]): string {
       return enexNote(day.title, body, day.isoDate)
     }),
   )
-}
-
-/**
- * Checklist as plain Markdown task-list text for the share sheet, which can
- * only carry text: a date line per day (Apple Notes takes the first line as
- * the note's title), then "- [ ]" / "- [x]" items.
- */
-export function formatNotesAsChecklistText(records: ExportRecord[]): string {
-  return checklistDays(records)
-    .map((day) =>
-      [day.title, ...day.items.map((item) => `- [${item.checked ? 'x' : ' '}] ${item.text}`)].join('\n'),
-    )
-    .join('\n\n')
 }
 
 /** Formats a batch of notes for export/download in the given format — newest-first order is the caller's responsibility. */
@@ -253,6 +240,11 @@ export function exportFilename(format: ExportFormat): string {
   const extension = format === 'enex-checklist' ? 'enex' : format
   const suffix = format === 'enex-checklist' ? '-checklist' : ''
   return `telonote-export-${new Date().toISOString().slice(0, 10)}${suffix}.${extension}`
+}
+
+/** The same text as downloadTextFile saves, as a File — for handing to the OS share sheet instead. */
+export function exportAsFile(filename: string, text: string, format: ExportFormat = 'txt'): File {
+  return new File([text], filename, { type: EXPORT_MIME_TYPES[format] })
 }
 
 export function downloadTextFile(filename: string, text: string, format: ExportFormat = 'txt') {
