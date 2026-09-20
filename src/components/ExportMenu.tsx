@@ -11,6 +11,7 @@ interface ExportMenuProps {
 
 const FORMATS: { format: ExportFormat; label: string }[] = [
   { format: 'txt', label: 'Text (.txt)' },
+  { format: 'md', label: 'Markdown (.md)' },
   { format: 'csv', label: 'CSV (.csv)' },
   { format: 'json', label: 'JSON (.json)' },
 ]

@@ -77,6 +77,20 @@ function CopyIcon() {
   )
 }
 
+function ShareIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 15V4m0 0L8.5 7.5M12 4l3.5 3.5M8 10H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function CheckIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -169,6 +183,11 @@ function extensionForBlobType(type: string): string {
   if (type.includes('amr')) return 'amr'
   return 'audio'
 }
+
+// The Web Share API opens the OS share sheet (on iOS that's where "Notes"
+// lives). Only offered where the browser actually implements it — a missing
+// button beats one that does nothing.
+const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
 // Buttons rely on real color/background contrast at rest, not just a
 // :hover state — hover never fires on a touchscreen, so an icon that's
@@ -330,6 +349,21 @@ export default function NoteCard({
     }
   }
 
+  const handleShare = async () => {
+    if (!transcript) return
+    setIsActionsExpanded(false)
+    try {
+      // Called straight from the click, with nothing awaited first — iOS
+      // Safari rejects share() unless it runs inside the user gesture.
+      await navigator.share({ text: transcript })
+    } catch (error) {
+      // Dismissing the share sheet rejects with AbortError — not a failure.
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      setInlineError("Couldn't open the share sheet.")
+      setTimeout(() => setInlineError(''), 3000)
+    }
+  }
+
   const handleRetranscribe = () => {
     setIsActionsExpanded(false)
     setIsRetranscribingFlag(true)
@@ -430,6 +464,11 @@ export default function NoteCard({
                     {justCopied ? <CheckIcon /> : <CopyIcon />}
                   </button>
                 )}
+                {hasRealId && transcript && canShare && (
+                  <button type="button" onClick={handleShare} aria-label="Share transcript" className={iconButtonClass}>
+                    <ShareIcon />
+                  </button>
+                )}
                 {hasRealId && (
                   <button
                     type="button"
@@ -512,7 +551,7 @@ export default function NoteCard({
                 {hasRealId && (
                   <div
                     className="shrink-0 overflow-hidden transition-[max-width] duration-300 ease-out"
-                    style={{ maxWidth: isActionsExpanded ? 310 : 0 }}
+                    style={{ maxWidth: isActionsExpanded ? (transcript && canShare ? 360 : 310) : 0 }}
                   >
                     <div className="flex items-center gap-2 pr-2">
                       {transcript && (
@@ -523,6 +562,16 @@ export default function NoteCard({
                           className={`${iconButtonClass} shrink-0`}
                         >
                           {justCopied ? <CheckIcon /> : <CopyIcon />}
+                        </button>
+                      )}
+                      {transcript && canShare && (
+                        <button
+                          type="button"
+                          onClick={handleShare}
+                          aria-label="Share transcript"
+                          className={`${iconButtonClass} shrink-0`}
+                        >
+                          <ShareIcon />
                         </button>
                       )}
                       <button

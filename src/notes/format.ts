@@ -74,10 +74,11 @@ export interface ExportRecord {
   transcript: string | null
 }
 
-export type ExportFormat = 'txt' | 'csv' | 'json'
+export type ExportFormat = 'txt' | 'md' | 'csv' | 'json'
 
 const EXPORT_MIME_TYPES: Record<ExportFormat, string> = {
   txt: 'text/plain',
+  md: 'text/markdown',
   csv: 'text/csv',
   json: 'application/json',
 }
@@ -110,6 +111,14 @@ export function formatNotesForExport(records: ExportRecord[], format: ExportForm
         .join(','),
     )
     return ['id,created_at,duration_ms,transcript', ...rows].join('\n')
+  }
+  if (format === 'md') {
+    // One heading per note, so an importer that converts Markdown to rich
+    // text (e.g. Apple Notes on iOS/macOS 26+) renders each note's date as
+    // a title above its transcript.
+    return records
+      .map((r) => `# ${new Date(r.createdAt).toLocaleString()}\n\n${r.transcript ?? '(no transcript)'}`)
+      .join('\n\n---\n\n')
   }
   // Plain text — same shape as the bulk "Copy" action, one note per section.
   return records
