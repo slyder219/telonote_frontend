@@ -15,6 +15,7 @@ import Pricing from './pages/Pricing'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Refunds from './pages/Refunds'
+import Faq from './pages/Faq'
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/refunds" element={<Refunds />} />
+          <Route path="/faq" element={<Faq />} />
           <Route
             path="/login"
             element={

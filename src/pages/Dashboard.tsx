@@ -5,7 +5,7 @@ import { useSelection } from '../hooks/useSelection'
 import { useNotes } from '../notes/useNotes'
 import { fuzzySearch } from '../search/fuzzySearch'
 import { groupNotesByDay } from '../notes/groupByDay'
-import { downloadTextFile, exportAsFile, exportFilename, formatNotesForExport } from '../notes/format'
+import { downloadTextFile, exportFilename, formatNotesForExport } from '../notes/format'
 import type { ExportFormat } from '../notes/format'
 import type { ClientNote } from '../notes/types'
 import type { NoteSearchResult } from '../api/notes'
@@ -18,7 +18,6 @@ import LoadMoreButton from '../components/LoadMoreButton'
 import Button from '../components/Button'
 import SearchInput from '../components/SearchInput'
 import SelectionHeader from '../components/SelectionHeader'
-import ActionMenu from '../components/ActionMenu'
 import ExportMenu from '../components/ExportMenu'
 import Toast from '../components/Toast'
 import type { ToastData } from '../components/Toast'
@@ -28,13 +27,6 @@ type SearchMode = 'text' | 'meaning'
 // The OS share sheet (where Notes and Reminders live on iOS) — only offered
 // where the browser implements the Web Share API.
 const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
-
-// Sharing the checklist as a real .enex file needs file support in the Web
-// Share API, which is narrower than plain-text sharing.
-const canShareFiles =
-  canShare &&
-  typeof navigator.canShare === 'function' &&
-  navigator.canShare({ files: [new File([''], 'telonote.enex', { type: 'application/xml' })] })
 
 function SkeletonCard() {
   return (
@@ -177,33 +169,24 @@ export default function Dashboard() {
   }
 
   // Several notes, one share-sheet hand-off: the share sheet takes a single
-  // payload, so they go as one combined text (same shape as Copy) — or, as a
-  // checklist, the Apple Notes checklist .enex file (the only form that
-  // reliably lands as checkboxes; plain text can't carry them).
-  const handleBulkShare = async (asChecklistFile: boolean) => {
+  // payload, so they go as one combined text (same shape as Copy). Checkbox
+  // lists can't travel this way — that's the Export menu's Apple Notes
+  // checklist file.
+  const handleBulkShare = async () => {
     const ids = selection.selectedIds
     const selected = notes.filter((note) => ids.has(note.id))
-    const records = selected.map((note) => ({
-      id: note.id,
-      createdAt: note.createdAt,
-      durationMs: note.durationMs,
-      transcript: note.finalTranscript ?? note.roughTranscript,
-      completed: note.completed,
-    }))
-    const payload: ShareData = asChecklistFile
-      ? {
-          files: [
-            exportAsFile(
-              exportFilename('enex-checklist'),
-              formatNotesForExport(records, 'enex-checklist'),
-              'enex-checklist',
-            ),
-          ],
-        }
-      : { text: formatNotesForExport(records, 'txt') }
+    const text = formatNotesForExport(
+      selected.map((note) => ({
+        id: note.id,
+        createdAt: note.createdAt,
+        durationMs: note.durationMs,
+        transcript: note.finalTranscript ?? note.roughTranscript,
+      })),
+      'txt',
+    )
     try {
       // Straight from the tap, nothing awaited first — iOS needs the gesture.
-      await navigator.share(payload)
+      await navigator.share({ text })
       selection.clear()
       setIsSelecting(false)
     } catch (error) {
@@ -398,33 +381,15 @@ export default function Dashboard() {
               Copy
             </Button>
             {canShare && (
-              <ActionMenu
-                label="Share format"
-                align="start"
-                items={[
-                  { key: 'text', label: 'Share as text', onSelect: () => handleBulkShare(false) },
-                  ...(canShareFiles
-                    ? [
-                        {
-                          key: 'checklist',
-                          label: 'Share as checklist (.enex)',
-                          onSelect: () => handleBulkShare(true),
-                        },
-                      ]
-                    : []),
-                ]}
-                renderTrigger={(triggerProps) => (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="!px-3 !py-1.5 !text-sm"
-                    disabled={selection.count === 0}
-                    {...triggerProps}
-                  >
-                    Share
-                  </Button>
-                )}
-              />
+              <Button
+                type="button"
+                variant="secondary"
+                className="!px-3 !py-1.5 !text-sm"
+                disabled={selection.count === 0}
+                onClick={handleBulkShare}
+              >
+                Share
+              </Button>
             )}
             <ExportMenu
               onExport={handleBulkExport}

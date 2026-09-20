@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { usePageMeta } from '../hooks/usePageMeta'
 import * as authApi from '../api/auth'
 import { ApiError, NetworkError } from '../api/client'
@@ -55,7 +56,10 @@ export default function Account() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 pb-24 pt-12 sm:px-6 sm:pb-12">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">Account</h1>
+      <Link to="/dashboard" className="text-sm font-medium text-brand-400 hover:underline">
+        ← Back to notes
+      </Link>
+      <h1 className="mt-4 text-2xl font-semibold tracking-tight text-ink">Account</h1>
 
       <div className="mt-6 rounded-2xl border border-border bg-surface p-6">
         <h2 className="text-base font-semibold text-ink">Change password</h2>

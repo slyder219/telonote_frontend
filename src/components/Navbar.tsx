@@ -78,7 +78,7 @@ export default function Navbar() {
     <>
       <header className="sticky top-0 z-10 border-b border-border bg-paper/80 backdrop-blur">
         <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
-          <Link to="/" className="shrink-0">
+          <Link to={isAuthenticated ? '/dashboard' : '/'} className="shrink-0">
             <Logo />
           </Link>
 
@@ -113,7 +113,7 @@ export default function Navbar() {
                   aria-label="Account"
                   className={({ isActive }) =>
                     `flex h-10 w-10 items-center justify-center rounded-full transition-colors active:bg-surface ${
-                      isActive ? 'text-brand-600' : 'text-ink-soft'
+                      isActive ? 'text-brand-400' : 'text-ink-soft'
                     }`
                   }
                 >

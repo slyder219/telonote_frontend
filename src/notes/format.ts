@@ -242,11 +242,6 @@ export function exportFilename(format: ExportFormat): string {
   return `telonote-export-${new Date().toISOString().slice(0, 10)}${suffix}.${extension}`
 }
 
-/** The same text as downloadTextFile saves, as a File — for handing to the OS share sheet instead. */
-export function exportAsFile(filename: string, text: string, format: ExportFormat = 'txt'): File {
-  return new File([text], filename, { type: EXPORT_MIME_TYPES[format] })
-}
-
 export function downloadTextFile(filename: string, text: string, format: ExportFormat = 'txt') {
   const blob = new Blob([text], { type: EXPORT_MIME_TYPES[format] })
   const url = URL.createObjectURL(blob)

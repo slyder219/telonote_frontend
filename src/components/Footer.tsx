@@ -13,6 +13,9 @@ export default function Footer() {
           <Link to="/pricing" className="hover:text-ink">
             Pricing
           </Link>
+          <Link to="/faq" className="hover:text-ink">
+            FAQ
+          </Link>
           <Link to="/terms" className="hover:text-ink">
             Terms of Service
           </Link>
