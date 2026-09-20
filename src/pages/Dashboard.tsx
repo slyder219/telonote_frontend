@@ -5,7 +5,7 @@ import { useSelection } from '../hooks/useSelection'
 import { useNotes } from '../notes/useNotes'
 import { fuzzySearch } from '../search/fuzzySearch'
 import { groupNotesByDay } from '../notes/groupByDay'
-import { downloadTextFile, exportFilename, formatNotesForExport } from '../notes/format'
+import { downloadTextFile, exportFilename, formatNotesAsChecklistText, formatNotesForExport } from '../notes/format'
 import type { ExportFormat } from '../notes/format'
 import type { ClientNote } from '../notes/types'
 import type { NoteSearchResult } from '../api/notes'
@@ -18,6 +18,7 @@ import LoadMoreButton from '../components/LoadMoreButton'
 import Button from '../components/Button'
 import SearchInput from '../components/SearchInput'
 import SelectionHeader from '../components/SelectionHeader'
+import ActionMenu from '../components/ActionMenu'
 import ExportMenu from '../components/ExportMenu'
 import Toast from '../components/Toast'
 import type { ToastData } from '../components/Toast'
@@ -162,19 +163,19 @@ export default function Dashboard() {
   }
 
   // Several notes, one share-sheet hand-off: the share sheet takes a single
-  // payload, so they go as one combined text (same shape as Copy).
-  const handleBulkShare = async () => {
+  // payload, so they go as one combined text (same shape as Copy) — or, as a
+  // checklist, one "- [ ]" line per note.
+  const handleBulkShare = async (asChecklist: boolean) => {
     const ids = selection.selectedIds
     const selected = notes.filter((note) => ids.has(note.id))
-    const text = formatNotesForExport(
-      selected.map((note) => ({
-        id: note.id,
-        createdAt: note.createdAt,
-        durationMs: note.durationMs,
-        transcript: note.finalTranscript ?? note.roughTranscript,
-      })),
-      'txt',
-    )
+    const records = selected.map((note) => ({
+      id: note.id,
+      createdAt: note.createdAt,
+      durationMs: note.durationMs,
+      transcript: note.finalTranscript ?? note.roughTranscript,
+      completed: note.completed,
+    }))
+    const text = asChecklist ? formatNotesAsChecklistText(records) : formatNotesForExport(records, 'txt')
     try {
       // Straight from the tap, nothing awaited first — iOS needs the gesture.
       await navigator.share({ text })
@@ -372,15 +373,25 @@ export default function Dashboard() {
               Copy
             </Button>
             {canShare && (
-              <Button
-                type="button"
-                variant="secondary"
-                className="!px-3 !py-1.5 !text-sm"
-                disabled={selection.count === 0}
-                onClick={handleBulkShare}
-              >
-                Share
-              </Button>
+              <ActionMenu
+                label="Share format"
+                align="start"
+                items={[
+                  { key: 'text', label: 'Share as text', onSelect: () => handleBulkShare(false) },
+                  { key: 'checklist', label: 'Share as checklist', onSelect: () => handleBulkShare(true) },
+                ]}
+                renderTrigger={(triggerProps) => (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="!px-3 !py-1.5 !text-sm"
+                    disabled={selection.count === 0}
+                    {...triggerProps}
+                  >
+                    Share
+                  </Button>
+                )}
+              />
             )}
             <ExportMenu
               onExport={handleBulkExport}

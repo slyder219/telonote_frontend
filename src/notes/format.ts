@@ -152,35 +152,63 @@ function formatAsEnex(records: ExportRecord[]): string {
   )
 }
 
-/**
- * Same .enex import path, but each calendar day becomes one note whose lines
- * are checkable items ("<en-todo/>" is ENML's checkbox) — time first, then the
- * transcript flattened onto one line. Completed notes arrive pre-ticked.
- */
-function formatAsEnexChecklist(records: ExportRecord[]): string {
+interface ChecklistDay {
+  title: string
+  isoDate: string
+  items: { text: string; checked: boolean }[]
+}
+
+// One entry per calendar day (input order kept): a full-date title plus one
+// checkable line per note — time first, then the transcript flattened onto a
+// single line. Shared by the .enex checklist export and the share-sheet text.
+function checklistDays(records: ExportRecord[]): ChecklistDay[] {
   const days = new Map<string, ExportRecord[]>()
   for (const r of records) {
     const key = dayKey(r.createdAt)
     days.set(key, [...(days.get(key) ?? []), r])
   }
+  return [...days.values()].map((group) => ({
+    title: new Date(group[0].createdAt).toLocaleDateString(undefined, {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    }),
+    isoDate: group[0].createdAt,
+    items: group.map((r) => ({
+      text: `${formatTimeOfDay(r.createdAt)} — ${(r.transcript ?? '(no transcript)').replace(/\s+/g, ' ').trim()}`,
+      checked: r.completed === true,
+    })),
+  }))
+}
+
+/**
+ * Same .enex import path, but each calendar day becomes one note whose lines
+ * are checkable items ("<en-todo/>" is ENML's checkbox). Completed notes
+ * arrive pre-ticked.
+ */
+function formatAsEnexChecklist(records: ExportRecord[]): string {
   return enexExport(
-    [...days.values()].map((group) => {
-      const body = group
-        .map((r) => {
-          const text = (r.transcript ?? '(no transcript)').replace(/\s+/g, ' ').trim()
-          const checked = r.completed ? 'true' : 'false'
-          return `<div><en-todo checked="${checked}"/>${escapeXml(`${formatTimeOfDay(r.createdAt)} — ${text}`)}</div>`
-        })
+    checklistDays(records).map((day) => {
+      const body = day.items
+        .map((item) => `<div><en-todo checked="${item.checked}"/>${escapeXml(item.text)}</div>`)
         .join('')
-      const title = new Date(group[0].createdAt).toLocaleDateString(undefined, {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-      })
-      return enexNote(title, body, group[0].createdAt)
+      return enexNote(day.title, body, day.isoDate)
     }),
   )
+}
+
+/**
+ * Checklist as plain Markdown task-list text for the share sheet, which can
+ * only carry text: a date line per day (Apple Notes takes the first line as
+ * the note's title), then "- [ ]" / "- [x]" items.
+ */
+export function formatNotesAsChecklistText(records: ExportRecord[]): string {
+  return checklistDays(records)
+    .map((day) =>
+      [day.title, ...day.items.map((item) => `- [${item.checked ? 'x' : ' '}] ${item.text}`)].join('\n'),
+    )
+    .join('\n\n')
 }
 
 /** Formats a batch of notes for export/download in the given format — newest-first order is the caller's responsibility. */
