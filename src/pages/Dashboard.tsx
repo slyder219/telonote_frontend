@@ -217,6 +217,7 @@ export default function Dashboard() {
         createdAt: note.createdAt,
         durationMs: note.durationMs,
         transcript: note.finalTranscript ?? note.roughTranscript,
+        completed: note.completed,
       })),
       format,
     )

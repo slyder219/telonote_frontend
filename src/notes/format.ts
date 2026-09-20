@@ -72,14 +72,17 @@ export interface ExportRecord {
   createdAt: string
   durationMs: number | null
   transcript: string | null
+  /** Only used by the checklist format, where it pre-ticks the item. */
+  completed?: boolean
 }
 
-export type ExportFormat = 'txt' | 'md' | 'enex' | 'csv' | 'json'
+export type ExportFormat = 'txt' | 'md' | 'enex' | 'enex-checklist' | 'csv' | 'json'
 
 const EXPORT_MIME_TYPES: Record<ExportFormat, string> = {
   txt: 'text/plain',
   md: 'text/markdown',
   enex: 'application/xml',
+  'enex-checklist': 'application/xml',
   csv: 'text/csv',
   json: 'application/json',
 }
@@ -109,28 +112,22 @@ function enexTimestamp(isoDate: string): string {
   return new Date(isoDate).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
 }
 
-/**
- * Evernote's export format (.enex) — importable by Apple Notes on a Mac
- * (File > Import to Notes), which carries each note's created date along,
- * unlike a plain .txt/.md import. Text-only: no attachments/resources.
- */
-function formatAsEnex(records: ExportRecord[]): string {
-  const notes = records.map((r) => {
-    const stamp = enexTimestamp(r.createdAt)
-    const lines = (r.transcript ?? '(no transcript)').split(/\r?\n/)
-    const body = lines.map((line) => `<div>${line ? escapeXml(line) : '<br/>'}</div>`).join('')
-    // Escaping ">" above means the content can never contain "]]>", so the
-    // CDATA wrapper can't be terminated early by a transcript.
-    const enml =
-      '<?xml version="1.0" encoding="UTF-8"?>' +
-      '<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">' +
-      `<en-note>${body}</en-note>`
-    return (
-      `<note><title>${escapeXml(new Date(r.createdAt).toLocaleString())}</title>` +
-      `<content><![CDATA[${enml}]]></content>` +
-      `<created>${stamp}</created><updated>${stamp}</updated></note>`
-    )
-  })
+function enexNote(title: string, bodyHtml: string, isoDate: string): string {
+  const stamp = enexTimestamp(isoDate)
+  // Escaping ">" above means the content can never contain "]]>", so the
+  // CDATA wrapper can't be terminated early by a transcript.
+  const enml =
+    '<?xml version="1.0" encoding="UTF-8"?>' +
+    '<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">' +
+    `<en-note>${bodyHtml}</en-note>`
+  return (
+    `<note><title>${escapeXml(title)}</title>` +
+    `<content><![CDATA[${enml}]]></content>` +
+    `<created>${stamp}</created><updated>${stamp}</updated></note>`
+  )
+}
+
+function enexExport(notes: string[]): string {
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<!DOCTYPE en-export SYSTEM "http://xml.evernote.com/pub/evernote-export4.dtd">',
@@ -140,9 +137,56 @@ function formatAsEnex(records: ExportRecord[]): string {
   ].join('\n')
 }
 
+/**
+ * Evernote's export format (.enex) — importable by Apple Notes on a Mac
+ * (File > Import to Notes), which carries each note's created date along,
+ * unlike a plain .txt/.md import. Text-only: no attachments/resources.
+ */
+function formatAsEnex(records: ExportRecord[]): string {
+  return enexExport(
+    records.map((r) => {
+      const lines = (r.transcript ?? '(no transcript)').split(/\r?\n/)
+      const body = lines.map((line) => `<div>${line ? escapeXml(line) : '<br/>'}</div>`).join('')
+      return enexNote(new Date(r.createdAt).toLocaleString(), body, r.createdAt)
+    }),
+  )
+}
+
+/**
+ * Same .enex import path, but each calendar day becomes one note whose lines
+ * are checkable items ("<en-todo/>" is ENML's checkbox) — time first, then the
+ * transcript flattened onto one line. Completed notes arrive pre-ticked.
+ */
+function formatAsEnexChecklist(records: ExportRecord[]): string {
+  const days = new Map<string, ExportRecord[]>()
+  for (const r of records) {
+    const key = dayKey(r.createdAt)
+    days.set(key, [...(days.get(key) ?? []), r])
+  }
+  return enexExport(
+    [...days.values()].map((group) => {
+      const body = group
+        .map((r) => {
+          const text = (r.transcript ?? '(no transcript)').replace(/\s+/g, ' ').trim()
+          const checked = r.completed ? 'true' : 'false'
+          return `<div><en-todo checked="${checked}"/>${escapeXml(`${formatTimeOfDay(r.createdAt)} — ${text}`)}</div>`
+        })
+        .join('')
+      const title = new Date(group[0].createdAt).toLocaleDateString(undefined, {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })
+      return enexNote(title, body, group[0].createdAt)
+    }),
+  )
+}
+
 /** Formats a batch of notes for export/download in the given format — newest-first order is the caller's responsibility. */
 export function formatNotesForExport(records: ExportRecord[], format: ExportFormat): string {
   if (format === 'enex') return formatAsEnex(records)
+  if (format === 'enex-checklist') return formatAsEnexChecklist(records)
   if (format === 'json') {
     return JSON.stringify(
       records.map((r) => ({
@@ -178,7 +222,9 @@ export function formatNotesForExport(records: ExportRecord[], format: ExportForm
 }
 
 export function exportFilename(format: ExportFormat): string {
-  return `telonote-export-${new Date().toISOString().slice(0, 10)}.${format}`
+  const extension = format === 'enex-checklist' ? 'enex' : format
+  const suffix = format === 'enex-checklist' ? '-checklist' : ''
+  return `telonote-export-${new Date().toISOString().slice(0, 10)}${suffix}.${extension}`
 }
 
 export function downloadTextFile(filename: string, text: string, format: ExportFormat = 'txt') {

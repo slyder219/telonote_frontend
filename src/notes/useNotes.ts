@@ -637,6 +637,7 @@ export function useNotes() {
           createdAt: note.created_at,
           durationMs: note.duration_ms,
           transcript: note.final_transcript ?? note.rough_transcript,
+          completed: note.completed,
         })),
         format,
       )
