@@ -606,9 +606,7 @@ export function useNotes() {
   )
 
   const importToNotes = useCallback(
-    async (id: string) => {
-      await callWithAuthRetry((token) => notesApi.importNoteToNotes(id, token))
-    },
+    async (id: string) => callWithAuthRetry((token) => notesApi.importNoteToNotes(id, token)),
     [callWithAuthRetry],
   )
 

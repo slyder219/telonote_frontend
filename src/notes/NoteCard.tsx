@@ -217,7 +217,7 @@ interface NoteCardProps {
   onRequestAudio: (id: string) => Promise<string>
   onGenerateTitle?: (id: string) => Promise<string>
   /** Only passed when the user has a Notes phone number registered. */
-  onImportToNotes?: (id: string) => Promise<void>
+  onImportToNotes?: (id: string) => Promise<unknown>
   onRetranscribe?: (id: string) => void
   onSetColor?: (id: string, color: NoteColor | null) => void
   onToggleCompleted?: (id: string) => void
@@ -255,7 +255,6 @@ export default function NoteCard({
   const [inlineError, setInlineError] = useState('')
   const [justCopied, setJustCopied] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
-  const [justImported, setJustImported] = useState(false)
   const [isShareOpen, setIsShareOpen] = useState(false)
   const cardRef = useRef<HTMLDivElement | null>(null)
   const [justUpdated, setJustUpdated] = useState(false)
@@ -368,9 +367,8 @@ export default function NoteCard({
     setInlineError('')
     setIsImporting(true)
     try {
+      // Success is announced by the dashboard's toast.
       await onImportToNotes(note.id)
-      setJustImported(true)
-      setTimeout(() => setJustImported(false), 2000)
     } catch (error) {
       setInlineError(error instanceof Error && error.message ? error.message : "Couldn't import to Notes.")
     } finally {
@@ -497,8 +495,8 @@ export default function NoteCard({
           {!isSelecting && (
             <div className="-my-1.5 flex shrink-0 items-center gap-2">
               {/* Always mounted so screen readers announce it when text appears. */}
-              <span role="status" className={justCopied || justImported ? 'text-xs text-ink-soft' : 'sr-only'}>
-                {justCopied ? 'Copied' : justImported ? 'Imported to Notes' : ''}
+              <span role="status" className={justCopied ? 'text-xs text-ink-soft' : 'sr-only'}>
+                {justCopied ? 'Copied' : ''}
               </span>
               {canPlay && (
                 <button
