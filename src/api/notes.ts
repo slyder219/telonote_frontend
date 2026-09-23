@@ -138,3 +138,11 @@ export function searchNotesByMeaning(query: string, accessToken: string, limit =
     withCredentials: false,
   })
 }
+
+export function importNoteToNotes(id: string, accessToken: string) {
+  return apiFetch<{ notes_note_id: string; note_text: string }>(`/notes/${id}/import-to-notes`, {
+    method: 'POST',
+    accessToken,
+    withCredentials: false,
+  })
+}

@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { useSelection } from '../hooks/useSelection'
 import { useNotes } from '../notes/useNotes'
+import { useAuth } from '../auth/AuthContext'
 import { fuzzySearch } from '../search/fuzzySearch'
 import { groupNotesByDay } from '../notes/groupByDay'
 import { downloadTextFile, exportFilename, formatNotesForExport } from '../notes/format'
@@ -61,11 +62,15 @@ export default function Dashboard() {
     retranscribeNote,
     fetchAudioUrl,
     generateTitle,
+    importToNotes,
     searchByMeaning,
     exportAllNotes,
     isExporting,
     quota,
   } = useNotes()
+  const { user } = useAuth()
+  // Only offered once the user has linked a Notes phone number in Account.
+  const onImportToNotes = user?.notes_phone_number ? importToNotes : undefined
 
   const [searchMode, setSearchMode] = useState<SearchMode>('text')
   const [query, setQuery] = useState('')
@@ -445,6 +450,7 @@ export default function Dashboard() {
                     onDiscardUpload={discardUpload}
                     onRequestAudio={fetchAudioUrl}
                     onGenerateTitle={generateTitle}
+                    onImportToNotes={onImportToNotes}
                     onRetranscribe={retranscribeNote}
                     onSetColor={updateNoteColor}
                     onToggleCompleted={toggleNoteCompleted}
@@ -469,6 +475,7 @@ export default function Dashboard() {
               onDiscardUpload={discardUpload}
               onRequestAudio={fetchAudioUrl}
               onGenerateTitle={generateTitle}
+              onImportToNotes={onImportToNotes}
               onRetranscribe={retranscribeNote}
               onSetColor={updateNoteColor}
               onToggleCompleted={toggleNoteCompleted}

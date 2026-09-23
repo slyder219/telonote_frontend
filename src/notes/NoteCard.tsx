@@ -122,6 +122,20 @@ function DownloadIcon() {
   )
 }
 
+function ImportIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M4 12h11m0 0-4-4m4 4-4 4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function DotsIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -202,6 +216,8 @@ interface NoteCardProps {
   onDiscardUpload?: (id: string) => void
   onRequestAudio: (id: string) => Promise<string>
   onGenerateTitle?: (id: string) => Promise<string>
+  /** Only passed when the user has a Notes phone number registered. */
+  onImportToNotes?: (id: string) => Promise<void>
   onRetranscribe?: (id: string) => void
   onSetColor?: (id: string, color: NoteColor | null) => void
   onToggleCompleted?: (id: string) => void
@@ -220,6 +236,7 @@ export default function NoteCard({
   onDiscardUpload,
   onRequestAudio,
   onGenerateTitle,
+  onImportToNotes,
   onRetranscribe,
   onSetColor,
   onToggleCompleted,
@@ -237,6 +254,8 @@ export default function NoteCard({
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false)
   const [inlineError, setInlineError] = useState('')
   const [justCopied, setJustCopied] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const [justImported, setJustImported] = useState(false)
   const [isShareOpen, setIsShareOpen] = useState(false)
   const cardRef = useRef<HTMLDivElement | null>(null)
   const [justUpdated, setJustUpdated] = useState(false)
@@ -344,6 +363,21 @@ export default function NoteCard({
     }
   }
 
+  const handleImportToNotes = async () => {
+    if (!onImportToNotes) return
+    setInlineError('')
+    setIsImporting(true)
+    try {
+      await onImportToNotes(note.id)
+      setJustImported(true)
+      setTimeout(() => setJustImported(false), 2000)
+    } catch (error) {
+      setInlineError(error instanceof Error && error.message ? error.message : "Couldn't import to Notes.")
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   const handleRetranscribe = () => {
     setIsRetranscribingFlag(true)
     onRetranscribe?.(note.id)
@@ -382,6 +416,18 @@ export default function NoteCard({
     ...(transcript ? [{ key: 'copy', label: 'Copy transcript', icon: <CopyIcon />, onSelect: handleCopy }] : []),
     ...(transcript && canShare
       ? [{ key: 'share', label: 'Share…', icon: <ShareIcon />, onSelect: () => setIsShareOpen(true) }]
+      : []),
+    ...(transcript && onImportToNotes
+      ? [
+          {
+            key: 'import-notes',
+            label: 'Import to Notes',
+            icon: <ImportIcon />,
+            onSelect: handleImportToNotes,
+            disabled: isImporting,
+            hint: isImporting ? 'Importing…' : undefined,
+          },
+        ]
       : []),
     {
       key: 'download',
@@ -451,8 +497,8 @@ export default function NoteCard({
           {!isSelecting && (
             <div className="-my-1.5 flex shrink-0 items-center gap-2">
               {/* Always mounted so screen readers announce it when text appears. */}
-              <span role="status" className={justCopied ? 'text-xs text-ink-soft' : 'sr-only'}>
-                {justCopied ? 'Copied' : ''}
+              <span role="status" className={justCopied || justImported ? 'text-xs text-ink-soft' : 'sr-only'}>
+                {justCopied ? 'Copied' : justImported ? 'Imported to Notes' : ''}
               </span>
               {canPlay && (
                 <button

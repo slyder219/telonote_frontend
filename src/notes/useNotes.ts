@@ -605,6 +605,13 @@ export function useNotes() {
     [callWithAuthRetry],
   )
 
+  const importToNotes = useCallback(
+    async (id: string) => {
+      await callWithAuthRetry((token) => notesApi.importNoteToNotes(id, token))
+    },
+    [callWithAuthRetry],
+  )
+
   // Semantic ("by meaning") search returns bare {id, distance} pairs, not
   // full note data — the caller intersects these ids against the already-
   // loaded `notes` list and reuses that data, rather than this hook fetching
@@ -675,6 +682,7 @@ export function useNotes() {
     retranscribeNote,
     fetchAudioUrl,
     generateTitle,
+    importToNotes,
     searchByMeaning,
     exportAllNotes,
     isExporting,

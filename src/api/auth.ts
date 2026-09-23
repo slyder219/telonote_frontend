@@ -7,6 +7,7 @@ export interface User {
   email_verified: boolean
   role: string
   banned: boolean
+  notes_phone_number: string | null
 }
 
 export interface AuthSession {
@@ -46,4 +47,34 @@ export function changePassword(currentPassword: string, newPassword: string) {
 
 export function me(accessToken: string) {
   return apiFetch<User>('/auth/me', { accessToken, withCredentials: false })
+}
+
+// Linking a Notes phone number is two steps: a code is sent to the number
+// over WhatsApp, and the number is only saved once that code is verified.
+// See the backend API.md "Notes integration" section.
+export interface NotesPhoneCodeSent {
+  phone_number: string
+  retry_after_seconds: number
+}
+
+export function requestNotesPhoneCode(phoneNumber: string, accessToken: string) {
+  return apiFetch<NotesPhoneCodeSent>('/account/notes-phone/request-code', {
+    method: 'POST',
+    body: { phone_number: phoneNumber },
+    accessToken,
+    withCredentials: false,
+  })
+}
+
+export function verifyNotesPhoneCode(phoneNumber: string, code: string, accessToken: string) {
+  return apiFetch<{ notes_phone_number: string }>('/account/notes-phone/verify', {
+    method: 'POST',
+    body: { phone_number: phoneNumber, code },
+    accessToken,
+    withCredentials: false,
+  })
+}
+
+export function removeNotesPhone(accessToken: string) {
+  return apiFetch<void>('/account/notes-phone', { method: 'DELETE', accessToken, withCredentials: false })
 }
