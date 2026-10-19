@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { usePageMeta } from '../hooks/usePageMeta'
 import * as authApi from '../api/auth'
 import { useAuth } from '../auth/AuthContext'
@@ -221,6 +221,72 @@ function NotesPhoneCard() {
   )
 }
 
+// Permanent: deletes every note, recording and context item, and cancels any
+// subscription. Two steps (open, then confirm with password) so it can't be
+// triggered by a stray tap.
+function DeleteAccountCard() {
+  const { deleteAccount } = useAuth()
+  const navigate = useNavigate()
+  const [isOpen, setIsOpen] = useState(false)
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!password) {
+      setError('Enter your password to confirm.')
+      return
+    }
+    setError('')
+    setIsSubmitting(true)
+    try {
+      await deleteAccount(password)
+      navigate('/', { replace: true })
+    } catch (err) {
+      setError(errorMessage(err))
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="mt-6 rounded-2xl border border-red-400/40 bg-surface p-6">
+      <h2 className="text-base font-semibold text-ink">Delete account</h2>
+      <p className="mt-1 text-sm text-ink-soft">
+        Permanently deletes your account, all your notes and recordings, and your context. Any subscription is
+        canceled immediately. This can't be undone.
+      </p>
+
+      {isOpen ? (
+        <form className="mt-6 flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
+          <TextField
+            id="deletePassword"
+            label="Password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoFocus
+          />
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          <div className="mt-2 flex gap-3">
+            <Button type="submit" isLoading={isSubmitting} className="!bg-red-600 hover:!bg-red-700">
+              Delete my account
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setIsOpen(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <Button type="button" variant="secondary" className="mt-6 !text-red-600" onClick={() => setIsOpen(true)}>
+          Delete account…
+        </Button>
+      )}
+    </div>
+  )
+}
+
 export default function Account() {
   usePageMeta('Account — Telonote', { noindex: true })
 
@@ -308,6 +374,8 @@ export default function Account() {
       </div>
 
       <NotesPhoneCard />
+
+      <DeleteAccountCard />
     </div>
   )
 }

@@ -18,6 +18,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>
   signup: (name: string, email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  deleteAccount: (password: string) => Promise<void>
   refreshAccessToken: () => Promise<string>
 }
 
@@ -97,6 +98,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null)
   }
 
+  const deleteAccount = async (password: string) => {
+    // Fresh token first: a 401 here would otherwise read as a wrong password.
+    const { access_token } = await authApi.refresh()
+    await authApi.deleteAccount(password, access_token)
+    setSession(null)
+  }
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user: session?.user ?? null,
@@ -106,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       signup,
       logout,
+      deleteAccount,
       refreshAccessToken,
     }),
     [session, isLoading],

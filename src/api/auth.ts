@@ -78,3 +78,13 @@ export function verifyNotesPhoneCode(phoneNumber: string, code: string, accessTo
 export function removeNotesPhone(accessToken: string) {
   return apiFetch<void>('/account/notes-phone', { method: 'DELETE', accessToken, withCredentials: false })
 }
+
+// Permanent. Needs the password again; also cancels any subscription and
+// clears the session cookie (hence withCredentials).
+export function deleteAccount(password: string, accessToken: string) {
+  return apiFetch<void>('/auth/delete-account', {
+    method: 'POST',
+    body: { password },
+    accessToken,
+  })
+}
