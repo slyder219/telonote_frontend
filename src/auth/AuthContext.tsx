@@ -40,10 +40,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Bootstrap: the session cookie (if any) lets us mint a fresh access token
   // on load without the user having to log in again.
+  // A ?handoff= code (opened from the iOS app) signs in this browser instead;
+  // it's stripped from the URL right away so it never lingers in history.
   useEffect(() => {
     let cancelled = false
-    authApi
-      .refresh()
+    const url = new URL(window.location.href)
+    const handoff = url.searchParams.get('handoff')
+    if (handoff) {
+      url.searchParams.delete('handoff')
+      window.history.replaceState(window.history.state, '', url)
+    }
+    ;(handoff ? authApi.exchangeHandoff(handoff).catch(() => authApi.refresh()) : authApi.refresh())
       .then((auth) => {
         if (!cancelled) setSession(toSession(auth))
       })

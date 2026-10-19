@@ -88,3 +88,11 @@ export function deleteAccount(password: string, accessToken: string) {
     accessToken,
   })
 }
+
+// One-time code from the iOS app (?handoff=...) that signs this browser into the app's session.
+export function exchangeHandoff(code: string) {
+  return apiFetch<AuthSession>('/auth/handoff/exchange', {
+    method: 'POST',
+    body: { code },
+  })
+}
