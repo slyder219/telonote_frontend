@@ -10,7 +10,7 @@ export default function Privacy() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-12 sm:px-6">
       <h1 className="text-2xl font-semibold tracking-tight text-ink">Privacy Policy</h1>
-      <p className="mt-2 text-sm text-ink-soft">Last updated: August 23, 2026</p>
+      <p className="mt-2 text-sm text-ink-soft">Last updated: November 6, 2026</p>
 
       <p className={p}>
         This Privacy Policy explains what information Telonote collects, how we use it, and — most importantly —
@@ -46,7 +46,8 @@ export default function Privacy() {
       </p>
       <ul className={ul}>
         <li><strong className="text-ink">Paddle</strong> — processes payments for paid subscriptions as our merchant of record.</li>
-        <li><strong className="text-ink">Cloud infrastructure and AI processing providers</strong> — host our servers and run the transcription models that turn your audio into text.</li>
+        <li><strong className="text-ink">OpenAI</strong> — transcribes your audio and processes your transcripts and context items (for search by meaning and building your vocabulary). OpenAI processes this data only to provide Telonote and does not use it to train its models. The Telonote app asks for your permission before sending anything to OpenAI.</li>
+        <li><strong className="text-ink">Cloud infrastructure providers</strong> — host our servers and database.</li>
       </ul>
       <p className={p}>
         We may also disclose information if required by law, or to protect the rights, safety, or property of
