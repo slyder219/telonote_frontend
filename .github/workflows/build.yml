@@ -19,4 +19,6 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      # Mojibake guard: a file re-saved in the wrong encoding turns — into "â" (shipped once in a page title).
+      - run: "! grep -rnE 'Â|Ã|â' src index.html"
       - run: npm run build

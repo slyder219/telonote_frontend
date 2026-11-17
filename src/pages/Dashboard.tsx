@@ -25,7 +25,7 @@ import type { ToastData } from '../components/Toast'
 
 type SearchMode = 'text' | 'meaning'
 
-// The OS share sheet (where Notes and Reminders live on iOS) â only offered
+// The OS share sheet (where Notes and Reminders live on iOS) — only offered
 // where the browser implements the Web Share API.
 const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
@@ -40,7 +40,7 @@ function SkeletonCard() {
 }
 
 export default function Dashboard() {
-  usePageMeta('Dashboard â Telonote', { noindex: true })
+  usePageMeta('Dashboard — Telonote', { noindex: true })
   const {
     notes,
     isLoadingInitial,
@@ -88,7 +88,7 @@ export default function Dashboard() {
     )
   }, [notes, query])
 
-  // Semantic search returns bare {id, distance} pairs, not full note data â
+  // Semantic search returns bare {id, distance} pairs, not full note data —
   // resolve those ids against the notes already loaded here and reuse the
   // exact same ClientNote objects, in the order the API ranked them. A
   // result whose note isn't in the loaded page is dropped rather than
@@ -183,7 +183,7 @@ export default function Dashboard() {
 
   // Several notes, one share-sheet hand-off: the share sheet takes a single
   // payload, so they go as one combined text (same shape as Copy). Checkbox
-  // lists can't travel this way â that's the Export menu's Apple Notes
+  // lists can't travel this way — that's the Export menu's Apple Notes
   // checklist file.
   const handleBulkShare = async () => {
     const ids = selection.selectedIds
@@ -198,7 +198,7 @@ export default function Dashboard() {
       'txt',
     )
     try {
-      // Straight from the tap, nothing awaited first â iOS needs the gesture.
+      // Straight from the tap, nothing awaited first — iOS needs the gesture.
       await navigator.share({ text })
       selection.clear()
       setIsSelecting(false)
@@ -249,7 +249,7 @@ export default function Dashboard() {
   }
 
   const handleAudioExportComingSoon = () => {
-    setCopyMessage('Exporting with audio is coming soon â text export works today.')
+    setCopyMessage('Exporting with audio is coming soon — text export works today.')
     setTimeout(() => setCopyMessage(null), 4000)
   }
 
@@ -267,9 +267,9 @@ export default function Dashboard() {
             disabled={isExporting}
             triggerClassName="font-medium underline decoration-dotted disabled:opacity-60"
           >
-            {isExporting ? 'Exportingâ¦' : 'Export your notes'}
+            {isExporting ? 'Exporting…' : 'Export your notes'}
           </ExportMenu>
-          <span aria-hidden="true">Â·</span>
+          <span aria-hidden="true">·</span>
           <button type="button" onClick={handleAudioExportComingSoon} className="underline decoration-dotted">
             With audio (coming soon)
           </button>
@@ -301,7 +301,7 @@ export default function Dashboard() {
 
       {searchMode === 'text' && notes.length > 0 && (
         <div className="mb-4">
-          <SearchInput value={query} onChange={setQuery} placeholder="Search your notesâ¦" />
+          <SearchInput value={query} onChange={setQuery} placeholder="Search your notes…" />
         </div>
       )}
 
@@ -311,7 +311,7 @@ export default function Dashboard() {
             <SearchInput
               value={meaningQuery}
               onChange={setMeaningQuery}
-              placeholder="Describe what the note was aboutâ¦"
+              placeholder="Describe what the note was about…"
             />
           </div>
           <Button type="submit" variant="primary" isLoading={isSearchingMeaning} className="!px-4">
@@ -339,7 +339,7 @@ export default function Dashboard() {
 
       {searchMode === 'meaning' && !meaningError && meaningResults === null && !isSearchingMeaning && (
         <div className="mb-4 rounded-2xl border border-border bg-surface p-8 text-center text-sm text-ink-soft">
-          Search finds notes by what they mean, not just matching words â try "that call about the budget" even
+          Search finds notes by what they mean, not just matching words — try "that call about the budget" even
           if the note never says "budget".
         </div>
       )}
@@ -350,7 +350,7 @@ export default function Dashboard() {
         meaningMatches?.length === 0 &&
         !isSearchingMeaning && (
           <div className="mb-4 rounded-2xl border border-border bg-surface p-8 text-center text-sm text-ink-soft">
-            Found matches, but none are in what's currently loaded here â they may be further back in your history,
+            Found matches, but none are in what's currently loaded here — they may be further back in your history,
             or have since been deleted. Try "Load more" on the full list, then search again.
           </div>
         )}
