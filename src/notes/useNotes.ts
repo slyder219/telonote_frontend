@@ -28,8 +28,12 @@ export function toClientNote(summary: NoteSummary): ClientNote {
     status: 'ready',
     color: summary.color,
     completed: summary.completed,
+    keyboardDictation: summary.keyboard_dictation,
   }
 }
+
+/** Notes still uploading have a client-made id the server would reject. */
+const serverIds = (ids: string[]) => ids.filter((id) => !id.startsWith('temp-'))
 
 export function useNotes() {
   const callWithAuthRetry = useAuthenticatedRequest()
@@ -462,10 +466,17 @@ export function useNotes() {
         return current.filter((note) => !idSet.has(note.id))
       })
 
-      const results = await Promise.allSettled(
-        ids.map((id) => callWithAuthRetry((token) => notesApi.deleteNote(id, token))),
-      )
-      const failedIds = new Set(ids.filter((_, i) => results[i].status === 'rejected'))
+      let deleted = new Set<string>()
+      try {
+        const sendable = serverIds(ids)
+        if (sendable.length > 0) {
+          const result = await callWithAuthRetry((token) => notesApi.bulkDeleteNotes(sendable, token))
+          deleted = new Set(result.deleted_ids)
+        }
+      } catch {
+        // Nothing deleted: all of them go back below.
+      }
+      const failedIds = new Set(ids.filter((id) => !deleted.has(id)))
       ids
         .filter((id) => !failedIds.has(id))
         .forEach((id) => {
@@ -504,12 +515,14 @@ export function useNotes() {
   const restoreNotes = useCallback(
     async (ids: string[]) => {
       if (ids.length === 0) return
-      const results = await Promise.allSettled(
-        ids.map((id) => callWithAuthRetry((token) => notesApi.restoreNote(id, token))),
-      )
-      const restored = results.flatMap((result) =>
-        result.status === 'fulfilled' ? [toClientNote(result.value)] : [],
-      )
+      let restored: ClientNote[] = []
+      try {
+        restored = (await callWithAuthRetry((token) => notesApi.bulkRestoreNotes(serverIds(ids), token))).map(
+          toClientNote,
+        )
+      } catch {
+        // Reported below as not restored.
+      }
       if (restored.length > 0) {
         setNotes((current) => {
           const next = [...current]
@@ -529,6 +542,32 @@ export function useNotes() {
             ? `Restored ${restored.length}, ${failed} couldn't be restored.`
             : "Couldn't undo that — it may have been deleted too long ago.",
         )
+      }
+    },
+    [callWithAuthRetry, showBanner],
+  )
+
+  // Color or done/not-done for many notes in one request. Optimistic; reverted if it fails.
+  const bulkUpdateAppearance = useCallback(
+    async (ids: string[], updates: { color?: NoteColor | null; completed?: boolean }) => {
+      const sendable = serverIds(ids)
+      if (sendable.length === 0) return
+      const idSet = new Set(sendable)
+      let previous = new Map<string, ClientNote>()
+      setNotes((current) => {
+        previous = new Map(current.filter((note) => idSet.has(note.id)).map((note) => [note.id, note]))
+        return current.map((note) => (idSet.has(note.id) ? { ...note, ...updates } : note))
+      })
+      try {
+        await callWithAuthRetry((token) => notesApi.bulkUpdateAppearance(sendable, updates, token))
+      } catch {
+        setNotes((current) =>
+          current.map((note) => {
+            const before = previous.get(note.id)
+            return before ? { ...note, color: before.color, completed: before.completed } : note
+          }),
+        )
+        showBanner("Couldn't update those notes — reverted.")
       }
     },
     [callWithAuthRetry, showBanner],
@@ -676,6 +715,7 @@ export function useNotes() {
     toggleNoteCompleted,
     deleteNoteById,
     bulkDeleteNotes,
+    bulkUpdateAppearance,
     restoreNotes,
     retranscribeNote,
     fetchAudioUrl,

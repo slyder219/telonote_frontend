@@ -11,6 +11,8 @@ export interface NoteSummary {
   final_transcript: string | null
   color: NoteColor | null
   completed: boolean
+  /** Dictated through the Telonote keyboard; hidden from the list by default. */
+  keyboard_dictation: boolean
 }
 
 export interface NoteDetail extends NoteSummary {
@@ -85,6 +87,38 @@ export function deleteNote(id: string, accessToken: string) {
 export function restoreNote(id: string, accessToken: string) {
   return apiFetch<NoteDetail>(`/notes/${id}/restore`, {
     method: 'POST',
+    accessToken,
+    withCredentials: false,
+  })
+}
+
+// Bulk actions: one request for many notes. Ids that don't apply are skipped server-side.
+export function bulkDeleteNotes(ids: string[], accessToken: string) {
+  return apiFetch<{ deleted_ids: string[] }>('/notes/bulk/delete', {
+    method: 'POST',
+    body: { ids },
+    accessToken,
+    withCredentials: false,
+  })
+}
+
+export function bulkRestoreNotes(ids: string[], accessToken: string) {
+  return apiFetch<NoteDetail[]>('/notes/bulk/restore', {
+    method: 'POST',
+    body: { ids },
+    accessToken,
+    withCredentials: false,
+  })
+}
+
+export function bulkUpdateAppearance(
+  ids: string[],
+  updates: { color?: NoteColor | null; completed?: boolean },
+  accessToken: string,
+) {
+  return apiFetch<NoteDetail[]>('/notes/bulk/appearance', {
+    method: 'POST',
+    body: { ids, ...updates },
     accessToken,
     withCredentials: false,
   })

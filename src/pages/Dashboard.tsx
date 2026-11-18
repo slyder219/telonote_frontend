@@ -9,11 +9,12 @@ import { groupNotesByDay } from '../notes/groupByDay'
 import { downloadTextFile, exportFilename, formatNotesForExport } from '../notes/format'
 import type { ExportFormat } from '../notes/format'
 import type { ClientNote } from '../notes/types'
-import type { NoteSearchResult } from '../api/notes'
+import type { NoteColor, NoteSearchResult } from '../api/notes'
 import RecordButton from '../notes/RecordButton'
 import UploadAudioButton from '../notes/UploadAudioButton'
 import NoteCard from '../notes/NoteCard'
 import Banner from '../components/Banner'
+import ColorSwatchPicker from '../components/ColorSwatchPicker'
 import BulkActionBar from '../components/BulkActionBar'
 import LoadMoreButton from '../components/LoadMoreButton'
 import Button from '../components/Button'
@@ -58,6 +59,7 @@ export default function Dashboard() {
     toggleNoteCompleted,
     deleteNoteById,
     bulkDeleteNotes,
+    bulkUpdateAppearance,
     restoreNotes,
     retranscribeNote,
     fetchAudioUrl,
@@ -81,12 +83,20 @@ export default function Dashboard() {
   const [isSearchingMeaning, setIsSearchingMeaning] = useState(false)
   const [meaningError, setMeaningError] = useState<string | null>(null)
 
+  // Keyboard dictations are hidden unless asked for; the toggle only shows when there are some.
+  const [showDictations, setShowDictations] = useState(false)
+  const dictationCount = useMemo(() => notes.filter((note) => note.keyboardDictation).length, [notes])
+  const visibleNotes = useMemo(
+    () => (showDictations ? notes : notes.filter((note) => !note.keyboardDictation)),
+    [notes, showDictations],
+  )
+
   const textFilteredNotes = useMemo(() => {
-    if (!query.trim()) return notes
-    return notes.filter(
+    if (!query.trim()) return visibleNotes
+    return visibleNotes.filter(
       (note) => fuzzySearch(query, note.finalTranscript ?? note.roughTranscript ?? '').matches,
     )
-  }, [notes, query])
+  }, [visibleNotes, query])
 
   // Semantic search returns bare {id, distance} pairs, not full note data —
   // resolve those ids against the notes already loaded here and reuse the
@@ -96,9 +106,9 @@ export default function Dashboard() {
   // parallel source of note data.
   const meaningMatches = useMemo(() => {
     if (!meaningResults) return null
-    const byId = new Map(notes.map((note) => [note.id, note]))
+    const byId = new Map(visibleNotes.map((note) => [note.id, note]))
     return meaningResults.map((r) => byId.get(r.id)).filter((note): note is ClientNote => note !== undefined)
-  }, [meaningResults, notes])
+  }, [meaningResults, visibleNotes])
 
   const displayedNotes = searchMode === 'meaning' ? (meaningMatches ?? []) : textFilteredNotes
   const dayGroups = useMemo(
@@ -248,6 +258,22 @@ export default function Dashboard() {
     setIsSelecting(false)
   }
 
+  const finishBulk = () => {
+    selection.clear()
+    setIsSelecting(false)
+  }
+
+  const handleBulkAppearance = (updates: { color?: NoteColor | null; completed?: boolean }) => {
+    void bulkUpdateAppearance([...selection.selectedIds], updates)
+    finishBulk()
+  }
+
+  // The server re-runs one note per request; they go out together and each card shows its own progress.
+  const handleBulkRetranscribe = () => {
+    for (const id of selection.selectedIds) void retranscribeNote(id)
+    finishBulk()
+  }
+
   const handleAudioExportComingSoon = () => {
     setCopyMessage('Exporting with audio is coming soon — text export works today.')
     setTimeout(() => setCopyMessage(null), 4000)
@@ -273,6 +299,19 @@ export default function Dashboard() {
           <button type="button" onClick={handleAudioExportComingSoon} className="underline decoration-dotted">
             With audio (coming soon)
           </button>
+          {dictationCount > 0 && (
+            <>
+              <span aria-hidden="true">·</span>
+              <button
+                type="button"
+                onClick={() => setShowDictations((shown) => !shown)}
+                aria-pressed={showDictations}
+                className="underline decoration-dotted"
+              >
+                {showDictations ? 'Hide' : 'Show'} keyboard dictations ({dictationCount})
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -414,12 +453,45 @@ export default function Dashboard() {
             <Button
               type="button"
               variant="secondary"
+              className="!px-3 !py-1.5 !text-sm"
+              disabled={selection.count === 0}
+              onClick={() => handleBulkAppearance({ completed: true })}
+            >
+              Mark done
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="!px-3 !py-1.5 !text-sm"
+              disabled={selection.count === 0}
+              onClick={() => handleBulkAppearance({ completed: false })}
+            >
+              Mark not done
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="!px-3 !py-1.5 !text-sm"
+              disabled={selection.count === 0 || (quota?.remainingBytes ?? 1) <= 0}
+              onClick={handleBulkRetranscribe}
+            >
+              Re-transcribe
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
               className="!px-3 !py-1.5 !text-sm !text-danger"
               disabled={selection.count === 0}
               onClick={handleBulkDelete}
             >
               Delete
             </Button>
+            {selection.count > 0 && (
+              <div className="flex w-full items-center gap-2 text-sm text-ink-soft">
+                <span>Color:</span>
+                <ColorSwatchPicker value={null} onChange={(color) => handleBulkAppearance({ color })} />
+              </div>
+            )}
           </BulkActionBar>
         </div>
       )}
@@ -435,9 +507,11 @@ export default function Dashboard() {
           <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-center text-sm text-danger">
             {loadError}
           </div>
-        ) : notes.length === 0 ? (
+        ) : visibleNotes.length === 0 ? (
           <div className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-ink-soft">
-            No notes yet. Tap record to make your first one.
+            {dictationCount > 0
+              ? 'Only keyboard dictations so far. Show them with the link above.'
+              : 'No notes yet. Tap record to make your first one.'}
           </div>
         ) : searchMode === 'text' && textFilteredNotes.length === 0 ? (
           <div className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-ink-soft">

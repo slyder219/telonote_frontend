@@ -11,6 +11,7 @@ export interface ClientNote {
   status: NoteStatus
   color: NoteColor | null
   completed: boolean
+  keyboardDictation?: boolean
   /** A local object URL for this note's audio — set once recorded/uploaded this session, or lazily after fetchAudioUrl. */
   localAudioUrl?: string
   uploadError?: string
