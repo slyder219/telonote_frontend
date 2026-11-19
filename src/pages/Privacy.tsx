@@ -22,6 +22,7 @@ export default function Privacy() {
       <ul className={ul}>
         <li><strong className="text-ink">Account information</strong> — your email address and any name you provide when you sign up. If you add a passkey, we store only its public key; the private key stays in your device's keychain (such as iCloud Keychain) and never reaches us.</li>
         <li><strong className="text-ink">Your content</strong> — the audio you record or upload, the transcripts generated from it, and the personal vocabulary/context items (names, jargon, aliases) you build up over time.</li>
+        <li><strong className="text-ink">Phone number (optional)</strong> — only if you link a Notes phone number in your account so you can import notes into Notes, a separate WhatsApp-based notes service. You can remove it at any time.</li>
         <li><strong className="text-ink">Settings</strong> — preferences such as how transcripts are formatted.</li>
         <li><strong className="text-ink">Usage information</strong> — things like how much of your daily quota you've used, so we can show you accurate limits.</li>
         <li><strong className="text-ink">Payment information</strong> — for paid plans, your payment is handled entirely by our payment processor, Paddle. We never see or store your full card details.</li>
@@ -62,6 +63,7 @@ export default function Privacy() {
       <ul className={ul}>
         <li><strong className="text-ink">Paddle</strong> — processes payments for paid subscriptions as our merchant of record.</li>
         <li><strong className="text-ink">OpenAI</strong> — transcribes your audio and processes your transcripts and context items (for search by meaning and building your vocabulary). OpenAI processes this data only to provide Telonote and does not use it to train its models. The Telonote app asks for your permission before sending anything to OpenAI.</li>
+        <li><strong className="text-ink">Notes (WhatsApp)</strong> — only if you link a Notes phone number. We send that number to Notes so it can text you a verification code over WhatsApp (operated by Meta), and when you choose to import a note, we send that note's transcript to Notes. Nothing is sent to Notes unless you link a number and import a note.</li>
         <li><strong className="text-ink">Cloud infrastructure providers</strong> — host our servers and database.</li>
       </ul>
       <p className={p}>
