@@ -8,6 +8,7 @@ import { useAuthenticatedRequest } from '../auth/useAuthenticatedRequest'
 import { ApiError, NetworkError } from '../api/client'
 import Button from '../components/Button'
 import TextField from '../components/TextField'
+import TranscriptFormatCard from '../settings/TranscriptFormatCard'
 
 interface FormErrors {
   currentPassword?: string
@@ -372,6 +373,8 @@ export default function Account() {
           </Button>
         </form>
       </div>
+
+      <TranscriptFormatCard />
 
       <NotesPhoneCard />
 

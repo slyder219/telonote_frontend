@@ -33,7 +33,7 @@ Request:
 Response `200`:
 ```json
 {
-  "user": { "id": "uuid", "email": "...", "name": "...", "email_verified": false, "role": "user", "banned": false },
+  "user": { "id": "uuid", "email": "...", "name": "...", "email_verified": false, "role": "user", "banned": false, "notes_phone_number": null },
   "access_token": "eyJ...",
   "expires_in": 899
 }
@@ -51,13 +51,36 @@ Errors: `401` if there's no valid session (cookie missing/expired) - frontend sh
 ### `POST /auth/signout`
 `credentials: 'include'`, no body. `204` on success, clears the cookie. Frontend should also discard its in-memory access token.
 
+### `POST /auth/change-password`
+`credentials: 'include'`, no bearer token needed - authenticated via the session cookie only, same as `/auth/refresh`.
+
+Request:
+```json
+{ "current_password": "...", "new_password": "min 8 chars" }
+```
+`204` on success. The existing session cookie and access token both remain valid afterward (other sessions/devices are not revoked).
+Errors: `401` if there's no valid session cookie; `400` if `current_password` is wrong (see `detail`); `422` if `new_password` is under 8 chars.
+
 ### `GET /auth/me`
 `Authorization: Bearer <access_token>` header. No cookie needed.
 Response `200`:
 ```json
-{ "id": "uuid", "email": "...", "name": "...", "email_verified": false, "role": "user", "banned": false }
+{ "id": "uuid", "email": "...", "name": "...", "email_verified": false, "role": "user", "banned": false, "notes_phone_number": null }
 ```
 Use this to rehydrate user state on app load if you still have a valid access token; otherwise call `/auth/refresh` first.
+
+### `POST /auth/handoff` — sign a browser into the app's session
+For native apps. `Authorization: Bearer <access_token>` **and** the session cookie (the cookie must belong to the same user). Response `200`: `{ "code": "..." }` — single-use, valid 60 seconds. Open `https://telonote.com/<any page>?handoff=<code>`; the web app exchanges it on load. The browser then shares the app's session (signing out on either ends both).
+
+### `POST /auth/handoff/exchange`
+Body: `{ "code": "..." }`, sent with credentials. Same response and session cookie as `/auth/signin`. `401` if the code is unknown, used, or expired.
+
+### `POST /auth/delete-account`
+`Authorization: Bearer <access_token>` header. Body: `{ "password": "..." }` (re-confirmation).
+Permanently deletes the account and everything it owns: notes and their audio, transcription runs, context items/candidates, usage history and settings. Any live Paddle subscription is canceled immediately first; if that cancel fails, nothing is deleted. All sessions on every device end, and the session cookie is cleared.
+`204` on success. Errors: `403` with `detail: "Incorrect password"`; `502` if the subscription couldn't be canceled (account kept); `401` if the token is invalid.
+
+All bearer-authenticated endpoints return `401 "User no longer exists"` for a deleted account and `403 "User is banned"` for a banned one, even while the JWT itself hasn't expired. `/auth/refresh` does the same.
 
 ## Notes
 
@@ -92,10 +115,12 @@ The `detail` string is human-readable and safe to show directly, or build your o
 
 ### `POST /notes` — upload a new voice note
 `multipart/form-data` with one field: `audio` (the audio file).
+Optional query param `keyboard=true` marks it as a Telonote keyboard dictation (`keyboard_dictation` on every note
+object). Clients hide those from the list by default.
 
-**This is synchronous and runs the full pipeline** before responding: rough transcription → semantic context lookup (+ any `always_include` items) → final transcription with that context folded in. Expect this call to take a couple of seconds (typically ~2-3s) - show a loading/processing state, don't treat that latency as a failure.
+**This is synchronous and runs the full pipeline** before responding: rough transcription → semantic context lookup (+ any `always_include` items) → final transcription with that context folded in → the user's transcript formatting (see **Settings**; the keyboard format when `keyboard=true`). Expect this call to take a couple of seconds (typically ~2-3s) - show a loading/processing state, don't treat that latency as a failure.
 
-Audio is always stored first, independent of everything else - if a transcription step fails partway, the note still exists with whatever progress was made (e.g. a rough transcript but no final one) rather than the upload being lost. Audio must be a **compressed** format - reject/re-encode uncompressed recordings (`wav`, `aiff`, `flac`, raw PCM) client-side before uploading if that's how your recorder captures it. Accepted: mp3, m4a/aac, ogg, webm, opus, 3gp, amr, mp4 (by content-type or file extension) - **codec parameters on the content-type are fine** (e.g. `audio/webm;codecs=opus`, which is what `MediaRecorder` actually sends in most browsers) - they're stripped before matching, so don't worry about sending the "clean" form.
+Audio is always stored first, independent of everything else - if a transcription step fails partway, the note still exists with whatever progress was made (e.g. a rough transcript but no final one) rather than the upload being lost. Audio must be a **compressed** format - reject/re-encode uncompressed recordings (`wav`, `aiff`, `flac`, raw PCM) client-side before uploading if that's how your recorder captures it. Accepted: mp3, m4a/aac, ogg, webm, opus, 3gp, amr, mp4, caf (by content-type or file extension) - **codec parameters on the content-type are fine** (e.g. `audio/webm;codecs=opus`, which is what `MediaRecorder` actually sends in most browsers) - they're stripped before matching, so don't worry about sending the "clean" form.
 
 **Max file size: 24MB** - this is a hard ceiling from OpenAI's transcription API (25MB), not an arbitrary choice. This is a *size* limit, not a duration one - how much recording time fits depends entirely on the encoding bitrate. A low-bitrate voice codec (~24-32kbps, e.g. Opus) can fit close to 2 hours in that budget; a typical 64-128kbps recording will only fit roughly 25-50 minutes. If you want to support long recordings, encode at a low bitrate client-side.
 
@@ -104,7 +129,7 @@ Response `201`:
 {
   "id": "uuid",
   "created_at": "2026-08-22T23:37:20Z",
-  "duration_ms": null,
+  "duration_ms": 5904,
   "rough_transcript": "Please schedule a follow-up with Dr. Kowalczyk about the Zafirion protocol next Tuesday.",
   "final_transcript": "Please schedule a follow-up with Dr. Kowalczyk about the Zephyrion protocol next Tuesday.",
   "updated_at": "2026-08-22T23:37:23Z",
@@ -117,6 +142,8 @@ Response `201`:
   "audio_size_bytes": 92544
 }
 ```
+`duration_ms` is measured server-side from the audio itself (clients don't send it); `null` only if the file's length can't be read.
+
 Any of the transcript/model/timing fields can come back `null` if that step failed or produced nothing - `final_transcript` in particular can be missing even when `rough_transcript` isn't. Treat a note with a real `final_transcript` as done; anything else as still show it, but don't assume it's final.
 
 The audio itself is stored (as bytes, directly in the database - no object storage yet) and not included in this response body - fetch it separately via `GET /notes/{note_id}/audio` below if needed.
@@ -141,13 +168,9 @@ Query params: `q` (required, the search text), `limit` (default 10, max 50).
 
 Only searches notes that have an embedding (i.e. have a real `final_transcript` - `POST /notes`/`.../retranscribe` completed, not just audio-only notes) and aren't soft-deleted.
 
-Response `200`, ranked closest-first, each result including a `distance` field (pgvector cosine distance - **lower is more relevant**, not a 0-100 score):
+Response `200`, ranked closest-first, as bare note IDs and distances. The client can intersect these IDs with its already-loaded note summaries. `distance` is pgvector cosine distance (**lower is more relevant**, not a 0-100 score):
 ```json
-[{
-  "id": "uuid", "created_at": "...", "duration_ms": null,
-  "rough_transcript": "...", "final_transcript": "Call the vet about the dog's checkup, he's due for his annual shots.",
-  "distance": 0.50
-}]
+[{ "id": "uuid", "distance": 0.50 }]
 ```
 There's no relevance-score cutoff - it always returns up to `limit` results ranked by distance, even if the best match is a poor one. If you want a "no good matches" UI state, pick your own distance threshold client-side (for reference, exact/near-duplicate meaning is close to `0`, a clearly relevant match was `~0.5-0.6` in testing, unrelated notes were `~0.8-0.95`- but treat these as rough anchors, not guarantees).
 
@@ -171,6 +194,17 @@ const cd = res.headers.get('content-disposition'); // e.g. attachment; filename=
 const filename = cd?.match(/filename="([^"]+)"/)?.[1] ?? `note-${id}`;
 ```
 
+### `POST /notes/{note_id}/title` — generate a short title for a note
+No body - the transcript is read server-side from the caller's own note (`final_transcript`, falling back to `rough_transcript`), so there's no client-supplied text and this can't be used as a general LLM proxy. Uses a small, cheap model (`gpt-5.4-nano`, see `app/ai/titles.py`). **Stateless**: nothing is stored, and calling it again may return a different title. Not counted against the daily audio quota (that meters audio bytes; this call is a few hundred tokens).
+
+Response `200`:
+```json
+{ "title": "Call vet about dog's checkup" }
+```
+At most 8 words / 80 characters, plain text, in the transcript's language. Typically ~1s; the server gives up after 15s (one retry).
+
+Errors: `404` if the note doesn't exist/isn't yours/is deleted. `422` if the note has no transcript yet. `502` if the model call fails or returns nothing usable (`"Couldn't generate a title right now."`) - safe to retry, and a client should fall back to whatever it does without a title.
+
 ### `POST /notes/{note_id}/retranscribe` — re-run transcription on the stored audio
 No body. Re-runs the full pipeline (rough → context → final) against this note's already-stored audio and overwrites its transcript/model/timing fields - useful as a "try again" action, or after the user has approved new context items that might now help. Synchronous, same latency profile as `POST /notes`.
 
@@ -188,7 +222,49 @@ Response `200`: full note object with the edit applied and `updated_at` bumped. 
 **Does not trigger candidate extraction** - unlike `POST /notes` and `.../retranscribe`, this is a human-authored correction, not a fresh AI transcription of the audio, so it's treated as out of scope for extraction. If a correction surfaces a term worth capturing, add/edit it directly via the context-items or context-candidates endpoints instead.
 
 ### `DELETE /notes/{note_id}`
-Soft delete. `204` on success, `404` if not found/not yours/already deleted.
+Soft delete. `204` on success, `404` if not found/not yours/already deleted. Can be undone for 15 minutes via `POST /notes/{note_id}/restore` below.
+
+### `POST /notes/{note_id}/restore` — undo a delete
+No body. The exact inverse of `DELETE` - clears the soft-delete marker so the note reappears, with its transcript, audio, color, etc. exactly as they were. Meant to back an "Undo" toast, so it only works for **15 minutes** after the delete.
+
+Response `200`: the full note object (same shape as `GET /notes/{id}`).
+Errors: `404` if the note doesn't exist/isn't yours, isn't currently deleted, or was deleted more than 15 minutes ago (one message covers all three on purpose).
+
+### Bulk actions — one request for many notes
+Body for all three: `{ "ids": ["uuid", ...] }` (1–500 ids). Ids that aren't yours, or don't apply, are skipped, not errors.
+- `POST /notes/bulk/delete` → `{ "deleted_ids": [...] }`, the ones actually deleted (undoable like `DELETE`).
+- `POST /notes/bulk/restore` → array of restored full notes (same 15-minute window as `/restore`).
+- `POST /notes/bulk/appearance` with `color` and/or `completed` alongside `ids` (`"color": null` clears it)
+  → array of updated full notes. `400` if neither field is given.
+
+## Notes integration (Notes phone number)
+Links an account to a phone number in the WhatsApp Notes app (wa_agent, via its partner Notes API - see `wa_agent/NOTES_API.md`) so telonote notes can be imported into it. The linked number is returned on every `user` object as `notes_phone_number` (digits only, with country code, or `null`). Server-side config: `NOTES_ACCESS_SECRET` (required) and `NOTES_API_URL` (defaults to the prod wa_agent Cloud Run URL).
+
+Linking is two steps so a user can only link a number they actually hold: request a code (sent over WhatsApp by Notes), then verify it. The number is saved only on a successful verify. For both steps, non-digits are stripped and a bare 10-digit number is assumed US and gets a leading `1`; anything that isn't then 8-15 digits is a `400`.
+
+### `POST /account/notes-phone/request-code` — send a code to the number
+```json
+{ "phone_number": "+1 845 867 8057" }
+```
+Response `200`: `{ "phone_number": "18458678057", "retry_after_seconds": 30 }` - the normalized number to send back to `verify`, and how long before a resend is allowed.
+
+Errors: `403` if the number doesn't have Notes access. `400` if Notes can't message it yet (WhatsApp's 24h window is closed - the user has to message the Notes WhatsApp number first, then retry). `429` (with `Retry-After`) if a code was sent in the last 30s - that code is still valid. `502` if the WhatsApp send failed.
+
+### `POST /account/notes-phone/verify` — confirm the code and link the number
+```json
+{ "phone_number": "18458678057", "code": "123456" }
+```
+Codes are 6 digits and expire after 10 minutes. Response `200`: `{ "notes_phone_number": "18458678057" }`; the number now also appears on the `user` object after the next `/auth/refresh`.
+
+Errors (all `400`, with a user-facing `detail`): incorrect code (includes attempts left), expired or no pending code, or locked after 5 wrong attempts - request a new code in the last two cases.
+
+### `DELETE /account/notes-phone`
+`204`. Clears the linked number.
+
+### `POST /notes/{note_id}/import-to-notes`
+No body. Sends the note's transcript (`final_transcript`, falling back to `rough_transcript`) to Notes as a new note for the caller's linked number - Notes AI-writes its title. Not deduplicated: importing twice creates two Notes notes.
+
+Response `200`: `{ "notes_note_id": "note_ab12cd34ef", "note_text": "AI-written title" }`. Errors: `400` if no number is linked or the note has no transcript, `404` if the note doesn't exist/isn't yours, `403` if the linked number has since lost Notes access, `502` if Notes fails.
 
 ## Context
 
@@ -297,6 +373,27 @@ Response `200`:
 All fields `null` if the user has never subscribed. `subscription_status` follows Paddle's own status model - `trialing`/`active`/`past_due` should all be treated as full access (Paddle Retain auto-retries failed payments during `past_due` - show a billing-issue banner linking to the portal session above, don't cut access immediately); `paused`/`canceled`/`null` means no access. If `subscription_scheduled_change_at` is set on an otherwise-active subscription, access should continue until that instant, not before.
 
 ### `POST /billing/paddle/webhook`
-**Not part of the frontend's integration** - this is the notification destination URL configured directly in the Paddle dashboard (Developer tools > Notifications), not something any of our own clients call. No bearer auth (Paddle can't send our JWTs) - authenticated instead via Paddle's own HMAC request-signing, verified server-side. Subscribe this destination to at least `subscription.created` and `subscription.updated`.
+**Not part of the frontend's integration** - this is the notification destination URL configured directly in the Paddle dashboard (Developer tools > Notifications), not something any of our own clients call. No bearer auth (Paddle can't send our JWTs) - authenticated instead via Paddle's own HMAC request-signing, verified server-side. Live now: destination `ntfset_01m0r35w3n8aj9zek9xj6z2x5y` → `https://be.telonote.com/billing/paddle/webhook`, subscribed to `subscription.created` and `subscription.updated`.
 
-- User settings (`/settings`)
+### Provisioning: subscription → daily quota
+Handled entirely server-side, no frontend action needed. When a webhook applies subscription state, if `subscription_type` is one with a configured tier quota (currently just `"paid"` → 100MB/day, matching that price's own description), the user's daily upload quota (`daily_limit`, see the **Daily usage quota** section above) is set automatically: to the tier's amount while status is `trialing`/`active`/`past_due`, and back to `null` (free 10MB/day default) the moment status becomes `paused`/`canceled`. Confirmed live end-to-end: subscribe → `daily_limit` becomes `100`; cancel → reverts to `null`, and `GET /notes/usage` independently reflects the free-tier default again immediately.
+
+## Settings
+
+### `GET /settings`
+`Authorization: Bearer <access_token>`. The caller's settings, with every default filled in (a user who never saved anything gets all defaults). Response `200`:
+```json
+{
+  "note_format":     { "final_period": "as_transcribed", "paragraphs": "as_transcribed" },
+  "keyboard_format": { "final_period": "as_transcribed", "paragraphs": "as_transcribed" }
+}
+```
+Transcript formatting, applied to `final_transcript` right after transcription - `note_format` for regular notes, `keyboard_format` for keyboard dictations (`keyboard_dictation: true`). Both have the same fields:
+- `final_period`: `as_transcribed` (default, leave it) · `always` (end with a period unless it already ends in `.` `!` `?` `…`; a trailing comma/colon/dash becomes the period) · `never` (drop one trailing period; `?`, `!` and `...` are kept).
+- `paragraphs`: `as_transcribed` (default) · `single_block` (one paragraph: line breaks and repeated spaces become single spaces).
+
+Formatting is plain text handling, never a model - it never changes a word. It applies to new transcriptions and re-transcriptions only; existing transcripts and manual edits are never rewritten. The unformatted model output is kept server-side.
+
+### `PATCH /settings`
+Partial update: send only what changes, e.g. `{ "keyboard_format": { "final_period": "never" } }`. Response `200`: the full settings, same shape as `GET`. `422` for an unknown field or value.
+
