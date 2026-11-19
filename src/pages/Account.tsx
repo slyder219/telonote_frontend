@@ -9,6 +9,7 @@ import { ApiError, NetworkError } from '../api/client'
 import Button from '../components/Button'
 import TextField from '../components/TextField'
 import TranscriptFormatCard from '../settings/TranscriptFormatCard'
+import PasskeysCard from '../settings/PasskeysCard'
 
 interface FormErrors {
   currentPassword?: string
@@ -373,6 +374,8 @@ export default function Account() {
           </Button>
         </form>
       </div>
+
+      <PasskeysCard />
 
       <TranscriptFormatCard />
 
