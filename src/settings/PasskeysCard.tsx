@@ -20,7 +20,7 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-// Add, see and remove the passkeys on this account. Signing in with one comes later.
+// Add, see and remove the passkeys on this account; signing in with one is on the login page.
 export default function PasskeysCard() {
   const callWithAuthRetry = useAuthenticatedRequest()
   const [passkeys, setPasskeys] = useState<Passkey[] | null>(null)

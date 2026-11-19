@@ -1,4 +1,5 @@
 import { apiFetch } from './client'
+import type { AuthSession } from './auth'
 
 // Passkeys (WebAuthn) against the backend's /passkeys endpoints. The server
 // sends options as JSON with base64url strings; the browser API wants
@@ -110,5 +111,68 @@ export function verifyRegistration(
     body: { challenge_id: challengeId, credential, name },
     accessToken,
     withCredentials: false,
+  })
+}
+
+// ---- signing in --------------------------------------------------------------
+
+/** Options for one sign-in, fetched ahead so the browser prompt can open straight from a click. */
+export interface PreparedAuthentication {
+  challengeId: string
+  publicKey: PublicKeyCredentialRequestOptions
+  fetchedAt: number
+}
+
+export async function prepareAuthentication(): Promise<PreparedAuthentication> {
+  const { challenge_id, options } = await apiFetch<Ceremony>('/passkeys/authenticate/options', {
+    method: 'POST',
+    withCredentials: false,
+  })
+  const o = options as unknown as {
+    challenge: string
+    allowCredentials?: { id: string; type: 'public-key'; transports?: AuthenticatorTransport[] }[]
+  } & Omit<PublicKeyCredentialRequestOptions, 'challenge' | 'allowCredentials'>
+  return {
+    challengeId: challenge_id,
+    fetchedAt: Date.now(),
+    publicKey: {
+      ...o,
+      challenge: fromBase64url(o.challenge),
+      allowCredentials: (o.allowCredentials ?? []).map((c) => ({ ...c, id: fromBase64url(c.id) })),
+    },
+  }
+}
+
+/** Opens the browser's passkey prompt for signing in; call directly from a click. Null if dismissed. */
+export async function getAssertion(prepared: PreparedAuthentication): Promise<Record<string, unknown> | null> {
+  let credential: PublicKeyCredential | null
+  try {
+    credential = (await navigator.credentials.get({ publicKey: prepared.publicKey })) as PublicKeyCredential | null
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'NotAllowedError') return null
+    throw error
+  }
+  if (!credential) return null
+  const response = credential.response as AuthenticatorAssertionResponse
+  return {
+    id: credential.id,
+    rawId: toBase64url(credential.rawId),
+    type: credential.type,
+    authenticatorAttachment: credential.authenticatorAttachment ?? undefined,
+    clientExtensionResults: credential.getClientExtensionResults(),
+    response: {
+      clientDataJSON: toBase64url(response.clientDataJSON),
+      authenticatorData: toBase64url(response.authenticatorData),
+      signature: toBase64url(response.signature),
+      userHandle: response.userHandle ? toBase64url(response.userHandle) : undefined,
+    },
+  }
+}
+
+/** Same response as /auth/signin, and sets the same session cookie (so it needs credentials). */
+export function verifyAuthentication(challengeId: string, credential: Record<string, unknown>) {
+  return apiFetch<AuthSession>('/passkeys/authenticate/verify', {
+    method: 'POST',
+    body: { challenge_id: challengeId, credential },
   })
 }

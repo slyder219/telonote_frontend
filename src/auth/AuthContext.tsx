@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as authApi from '../api/auth'
+import * as passkeysApi from '../api/passkeys'
 import type { AuthSession, User } from '../api/auth'
 import { ApiError, NetworkError } from '../api/client'
 
@@ -16,6 +17,8 @@ interface AuthContextValue {
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
+  /** Finishes a passkey sign-in (see api/passkeys getAssertion). The session then works like a password one. */
+  loginWithPasskey: (challengeId: string, credential: Record<string, unknown>) => Promise<void>
   signup: (name: string, email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   deleteAccount: (password: string) => Promise<void>
@@ -83,6 +86,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(toSession(auth))
   }
 
+  const loginWithPasskey = async (challengeId: string, credential: Record<string, unknown>) => {
+    const auth = await passkeysApi.verifyAuthentication(challengeId, credential)
+    setSession(toSession(auth))
+  }
+
   const signup = async (name: string, email: string, password: string) => {
     const auth = await authApi.signup(name, email, password)
     setSession(toSession(auth))
@@ -119,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: session !== null,
       isLoading,
       login,
+      loginWithPasskey,
       signup,
       logout,
       deleteAccount,
