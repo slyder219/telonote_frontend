@@ -10,7 +10,7 @@ export default function Privacy() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-12 sm:px-6">
       <h1 className="text-2xl font-semibold tracking-tight text-ink">Privacy Policy</h1>
-      <p className="mt-2 text-sm text-ink-soft">Last updated: November 19, 2026</p>
+      <p className="mt-2 text-sm text-ink-soft">Last updated: November 20, 2026</p>
 
       <p className={p}>
         This Privacy Policy explains what information Telonote collects, how we use it, and — most importantly —
@@ -46,6 +46,7 @@ export default function Privacy() {
       <ul className={ul}>
         <li><strong className="text-ink">What you type is never collected.</strong> The keyboard doesn't record, store, or send your keystrokes, and it makes no network connections of its own.</li>
         <li>To place a transcript, check that it arrived, and clear a field when you ask it to, the keyboard reads the text around the cursor. That happens only on your phone and is never stored or sent anywhere.</li>
+        <li>Your most recent dictation's text is kept on your phone for up to an hour, so the keyboard's Insert button can type it in again. It's shared only between the Telonote app and keyboard on your phone.</li>
         <li>Dictations you make with the keyboard are handled exactly like any other recording: the Telonote app uploads the audio, it's transcribed as described in this policy, and it's saved to your notes, where you can delete it.</li>
         <li>You can turn off Full Access or remove the keyboard at any time in iOS Settings → General → Keyboard.</li>
       </ul>
@@ -94,7 +95,8 @@ export default function Privacy() {
       <h2 className={h2}>8. Cookies and Local Storage</h2>
       <p className={p}>
         We use a minimal, essential session cookie to keep you signed in, and your browser's local storage to
-        remember app preferences on your device. We don't use third-party advertising or tracking cookies.
+        remember app preferences on your device. The iPhone app likewise keeps its sign-in session and settings on your
+        phone. We don't use third-party advertising or tracking cookies.
       </p>
 
       <h2 className={h2}>9. Children's Privacy</h2>
