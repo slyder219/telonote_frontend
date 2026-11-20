@@ -64,6 +64,13 @@ async function extractErrorMessage(response: Response): Promise<string> {
       if (messages.length > 0) return messages.join(' ')
     }
 
+    // Errors that carry extra data next to their message: {"detail": {"message": "...", "note_id": "..."}}
+    // (e.g. 422 "No speech detected in this recording.").
+    if (record.detail && typeof record.detail === 'object' && !Array.isArray(record.detail)) {
+      const nested = firstString((record.detail as Record<string, unknown>).message)
+      if (nested) return nested
+    }
+
     const message = firstString(record.detail, record.message, record.error, record.error_description)
     if (message) return message
   }
